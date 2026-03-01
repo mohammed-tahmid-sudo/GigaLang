@@ -121,8 +121,15 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   } else if (Peek().type == TokenType::IDENTIFIER) {
     Token name = Peek();
     Consume();
+    if (Peek().type == EQ) {
+      Consume();
+      auto val = ParseExpression();
 
-    if (Peek().type == LPAREN) {
+      // kxpect(SEMICOLON);
+
+      return std::make_unique<AssignmentNode>(name.value, std::move(val));
+
+    } else if (Peek().type == LPAREN) {
 
       Consume();
       std::vector<std::unique_ptr<ast>> args;
@@ -148,9 +155,10 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     } else if (Peek().type == LBRACKET) {
       Consume();
       auto val = ParseExpression();
-      if (!dynamic_cast<IntegerNode *>(val.get())) {
-        throw std::runtime_error("Expected a Number, But got Something Else");
-      }
+      // if (!dynamic_cast<IntegerNode *>(val.get())) {
+      //   throw std::runtime_error("Expected a Number, But got Something
+      //   Else");
+      // }
       Expect(RBRACKET);
 
       return std::make_unique<ArrayAccessNode>(name.value, std::move(val));
@@ -397,15 +405,15 @@ std::unique_ptr<ast> Parser::ParseAssignment() {
     return std::make_unique<AssignmentNode>(name.value, std::move(val));
   } else if (Peek().type == LBRACKET) {
     Consume();
-    Token location = Expect(INT_LITERAL);
+    auto locaiton = ParseExpression();
     Expect(RBRACKET);
 
     Expect(EQ);
     auto val = ParseExpression();
     Expect(SEMICOLON);
 
-    return std::make_unique<ArrayAssignNode>(
-        name.value, std::stoul(location.value), std::move(val));
+    return std::make_unique<ArrayAssignNode>(name.value, std::move(locaiton),
+                                             std::move(val));
   }
   return nullptr;
 }
@@ -476,12 +484,16 @@ int main() {
   }
 
   func main() -> Integer {
-	let a:Char[12] = "hello world\0";
-	let b:Char[12];
-	for (let i:Integer = 0; i < 12; i = i + 1)  {
-		b[i] = 
-	}
-	return 0; 
+  let a:Integer = 1;
+  let b:Char[13] = "hello world";
+
+  let i:Integer = 0;
+
+  for (i = 0; i < 13; i = i + 1) {
+	b[i] = to_upper(b[i]);
+  }
+
+  return 0; 
   }
 
   )";

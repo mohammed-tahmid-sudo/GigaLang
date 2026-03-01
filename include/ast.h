@@ -250,13 +250,18 @@ struct ArrayAccessNode : ast {
 };
 
 struct ArrayAssignNode : ast {
-  unsigned location;
-  std::string name;
-  std::unique_ptr<ast> value;
+  std::string name;           // array name
+  std::unique_ptr<ast> index; // index expression
+  std::unique_ptr<ast> value; // value to assign
 
-  ArrayAssignNode(const std::string &n, unsigned l, std::unique_ptr<ast> val)
-      : name(n), location(l), value(std::move(val)) {}
+  ArrayAssignNode(const std::string &n, std::unique_ptr<ast> idx,
+                  std::unique_ptr<ast> val)
+      : name(n), index(std::move(idx)), value(std::move(val)) {}
 
-  std::string repr() override { return "somerandomthing"; };
+  std::string repr() override { return "ArrayAssign(" + name + ")"; }
+
   llvm::Value *codegen(CodegenContext &cc) override;
 };
+
+// struct :wq
+

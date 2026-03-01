@@ -765,43 +765,44 @@ llvm::Value *ArrayAccessNode::codegen(CodegenContext &cc) {
 }
 
 llvm::Value *ArrayAssignNode::codegen(CodegenContext &cc) {
-  // 1. Lookup variable
+
   llvm::Value *arrayVal = cc.lookup(name);
   if (!arrayVal)
     throw std::runtime_error("Undefined array variable: " + name);
 
-  // 2. Must be alloca
   llvm::AllocaInst *alloca = llvm::dyn_cast<llvm::AllocaInst>(arrayVal);
-
   if (!alloca)
     throw std::runtime_error(name + " is not stack allocated");
 
   llvm::Type *arrayType = alloca->getAllocatedType();
-
   if (!arrayType->isArrayTy())
     throw std::runtime_error(name + " is not an array");
 
-  // 3. Create GEP indices
+  llvm::Value *index = this->index->codegen(cc);
+  if (!index)
+    throw std::runtime_error("Invalid index expression in array assignment");
+
+  if (!index->getType()->isIntegerTy())
+    throw std::runtime_error("Array index must be integer");
+
+  if (index->getType() != llvm::Type::getInt32Ty(*cc.TheContext))
+    index = cc.Builder->CreateIntCast(
+        index, llvm::Type::getInt32Ty(*cc.TheContext), true, "idxcast");
+
   llvm::Value *zero =
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*cc.TheContext), 0);
-
-  llvm::Value *index =
-      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*cc.TheContext), location);
 
   llvm::Value *elemPtr = cc.Builder->CreateGEP(arrayType, alloca, {zero, index},
                                                name + "_elem_ptr");
 
-  // 4. Generate RHS
   llvm::Value *val = value->codegen(cc);
   if (!val)
     throw std::runtime_error("Invalid RHS in array assignment");
 
   llvm::Type *elemType = arrayType->getArrayElementType();
-
   if (val->getType() != elemType)
     throw std::runtime_error("Type mismatch in array assignment");
 
-  // 5. Store
   cc.Builder->CreateStore(val, elemPtr);
 
   return val;
