@@ -7,6 +7,7 @@
 #include <llvm-18/llvm/IR/Value.h>
 #include <memory>
 #include <string>
+#include <strings.h>
 #include <vector>
 
 struct CodegenContext {
@@ -294,7 +295,18 @@ struct PointerVariableAssignmentNode : ast {
 
   llvm::Value *codegen(CodegenContext &cc) override;
 };
-struct PointerArrayVariableAssignmentNode : ast {};
+struct PointerArrayVariableAssignmentNode : ast {
+  std::string name;
+  std::unique_ptr<ast> index;
+  std::unique_ptr<ast> value;
+
+  PointerArrayVariableAssignmentNode(const std::string &n,
+                                     std::unique_ptr<ast> i,
+                                     std::unique_ptr<ast> v)
+      : name(n), index(std::move(i)), value(std::move(v)) {}
+  std::string repr() override { return "PointerArrayVariableAssignmentNode"; };
+  llvm::Value *codegen(CodegenContext &cc) override;
+};
 struct PointerReferenceNode : ast {};
 struct PointerDeReferenceNode : ast {};
 struct PointerDeRerenceAssingNode : ast {};

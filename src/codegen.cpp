@@ -823,6 +823,11 @@ llvm::Value *SyscallNode::codegen(CodegenContext &cc) {
 llvm::Value *PointerVariableAssignmentNode::codegen(CodegenContext &cc) {
   return cc.Builder->CreateStore(cc.lookup(name), val->codegen(cc));
 }
+llvm::Value *PointerArrayVariableAssignmentNode::codegen(CodegenContext &cc) {
+  llvm::Value *arrayPtr = cc.lookup(name);
+  llvm::Value *indexVal = index->codegen(cc);
+  llvm::Value *valueVal = value->codegen(cc);
+}
 
 // int main() {
 //   CodegenContext ctx("myprogram");
