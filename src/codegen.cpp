@@ -853,18 +853,7 @@ llvm::Value *PointerDeReferenceAssingNode::codegen(CodegenContext &cc) {
 
   return cc.Builder->CreateStore(value, loadedPtr);
 }
-llvm::Value *DeReferenceNode::codegen(CodegenContext &cc) {
-  llvm::Value *val = cc.lookup(name);
 
-  if (!val) {
-    throw std::runtime_error("UNKNOWN POINTER " + name);
-  }
-  if (!val->getType->isPointerTy()){
-	  throw std::runtime_error("EXPECTED A POINTER");
-  }
-
-
-}
 
 // int main() {
 //   CodegenContext ctx("myprogram");

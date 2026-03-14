@@ -212,10 +212,10 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     if (Peek().type == IDENTIFIER) {
       Token v = Peek();
       Consume();
-      return std::make_unique<VariableReferenceNode>(v.value);
+      return std::make_unique<DeReferenceNode>(v.value);
     }
-	std::cerr << "Huh";
-	return nullptr;
+    std::cerr << "Huh";
+    return nullptr;
 
   } else {
     if (Peek().type == SEMICOLON) {
