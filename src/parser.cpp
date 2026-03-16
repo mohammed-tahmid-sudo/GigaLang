@@ -130,6 +130,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
       return std::make_unique<AssignmentNode>(name.value, std::move(val));
 
     } else if (Peek().type == LPAREN) {
+      std::cout << "COMMING HERE" << std::endl;
 
       Consume();
       std::vector<std::unique_ptr<ast>> args;
@@ -276,7 +277,7 @@ std::unique_ptr<ast> Parser::ParseComparison() {
   std::unique_ptr<ast> left = ParseAddSub();
   while (Peek().type == TokenType::GT || Peek().type == TokenType::GTE ||
          Peek().type == TokenType::LT || Peek().type == TokenType::LTE ||
-         Peek().type == TokenType::EQEQ) {
+         Peek().type == TokenType::EQEQ || Peek().type == NOTEQ) {
     TokenType type = Peek().type;
     Consume();
     std::unique_ptr<ast> right = ParseAddSub();
@@ -514,7 +515,11 @@ std::unique_ptr<ast> Parser::ParseStatement() {
   } else if (Peek().type == FOR) {
     return ParseFor();
   } else if (Peek().type == IDENTIFIER) {
-    return ParseAssignment();
+    if (auto v = ParseAssignment()) {
+      return v;
+    } else {
+      return ParseExpression();
+    }
   } else {
     if (auto v = ParseExpression()) {
       return v;
@@ -551,20 +556,32 @@ std::vector<std::unique_ptr<ast>> Parser::Parse() {
 
 int main() {
   std::string src = R"(
-  func to_upper(c:Char) -> Char {
-	if c >= 97 && c <= 122 {
-		return c - 32;
-	} else {
-	   return 0;
-	}
-  }
+ // func to_upper(c:Char) -> Char {
+	// if c >= 97 && c <= 122 {
+		// return c - 32;
+	// } else {
+	   // return 0;
+	// }
+  // }
 
-  func to_lower(c:Char) -> Char {
-	  if c >= 65 && c <= 90 {
-		 return c + 32;
-	  } else { 
-		 return 0;
-	  }
+  // func to_lower(c:Char) -> Char {
+	  // if c >= 65 && c <= 90 {
+		 // return c + 32;
+	  // } else { 
+		 // return 0;
+	  // }
+  // }
+  func to_upper(c:Char*) -> Void {
+	let i:Integer = 0;
+
+	while (*c[i] != 0) {
+		
+	if *c[i] >= 97 && *c[i] <= 122 {
+		*c[i] = *c[i] - 32;
+	} 
+	i = i + 1; 
+	}
+
   }
 
   func main() -> Integer {
@@ -573,16 +590,12 @@ int main() {
 
 	  let i:Integer = 0;
 
-	  for (i = 0; i < sizeof(b); i = i + 1) {
-		b[i] = to_upper(b[i]);
-	  }
+	  // for (i = 0; i < sizeof(b); i = i + 1) {
+		// b[i] = to_upper(b[i]);
+	  // }
+	  to_upper(&b);
 
 	  @Syscall("write",1, b, sizeof(b));
-	  let x:Integer = 5;
-	  let y:Integer*[5] = [&x,&x, &x, &x, &x];
-	  let z:Integer = *y;
-	  *y[1] = 10; 
-
 	  return 0;
   }
 
@@ -606,9 +619,9 @@ int main() {
             << Colors::RESET << std::endl;
   Parser parser(program, "MYMODULE");
   auto val = parser.Parse();
-  for (auto &v : val) {
-    std::cout << v->repr() << std::endl;
-  }
+  // for (auto &v : val) {
+  //   std::cout << v->repr() << std::endl;
+  // }
 
   auto &cc = parser.getCodegenContext();
   for (auto &v : val) {
