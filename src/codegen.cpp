@@ -387,10 +387,10 @@ llvm::Value *BinaryOperationNode::codegen(CodegenContext &cc) {
   if (!LHS || !RHS)
     throw std::runtime_error("null operand in binary operation");
 
-  LHS->getType()->print(llvm::errs());
-  llvm::errs() << "\n";
-  RHS->getType()->print(llvm::errs());
-  llvm::errs() << "\n";
+  // LHS->getType()->print(llvm::errs());
+  // llvm::errs() << "\n";
+  // RHS->getType()->print(llvm::errs());
+  // llvm::errs() << "\n";
 
   switch (Type) {
 
@@ -893,6 +893,10 @@ llvm::Value *DeReferenceNode::codegen(CodegenContext &cc) {
 
   return cc.Builder->CreateLoad(elementType, ptrVal, "deref_" + name);
 }
+
+llvm::Value *StructNode::codegen(CodegenContext &cc) {
+
+};
 
 // int main() {
 //   CodegenContext ctx("myprogram");

@@ -2,7 +2,6 @@
 #include "lexer.h"
 #include <cctype>
 #include <colors.h>
-#include <iomanip>
 #include <iostream>
 #include <llvm-18/llvm/IR/DerivedTypes.h>
 #include <llvm-18/llvm/IR/InstrTypes.h>
@@ -120,6 +119,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
 
   } else if (Peek().type == TokenType::IDENTIFIER) {
     Token name = Peek();
+    std::cout << tokenName(name.type) << " : " << name.value << std::endl;
     Consume();
     if (Peek().type == EQ) {
       Consume();
@@ -515,11 +515,11 @@ std::unique_ptr<ast> Parser::ParseStatement() {
   } else if (Peek().type == FOR) {
     return ParseFor();
   } else if (Peek().type == IDENTIFIER) {
-    if (auto v = ParseAssignment()) {
-      return v;
-    } else {
+    // if (auto v = ParseAssignment()) {
+    //   return v;
+    // } else {
       return ParseExpression();
-    }
+    // }
   } else {
     if (auto v = ParseExpression()) {
       return v;

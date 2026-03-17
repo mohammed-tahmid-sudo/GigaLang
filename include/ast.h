@@ -29,7 +29,7 @@ struct CodegenContext {
   void popScope() { NamedValuesStack.pop_back(); }
 
   void addVariable(const std::string &name, llvm::Value *value,
-                   llvm::Type *Type, llvm::Type* elemenType) {
+                   llvm::Type *Type, llvm::Type *elemenType) {
     NamedValuesStack.back()[name] = VWT{value, Type, elemenType};
   }
 
@@ -122,7 +122,6 @@ struct VariableDeclareNode : ast {
 
   llvm::Value *codegen(CodegenContext &cc) override;
 };
-
 
 struct AssignmentNode : ast {
   std::string name;
@@ -327,6 +326,18 @@ struct DeReferenceNode : ast {
 
   llvm::Value *codegen(CodegenContext &cc) override;
 };
-// struct PointerDereferenceNode : ast {
-// 	std::string name
-// };
+
+struct StructNode : ast {
+  std::string name;
+
+  // field name + type
+  std::vector<std::pair<std::string, llvm::Type *>> fields;
+
+  StructNode(const std::string &n,
+             std::vector<std::pair<std::string, llvm::Type *>> f)
+      : name(n), fields(std::move(f)) {}
+
+  std::string repr() override { return "StructNode(" + name + ")"; }
+
+  llvm::Value *codegen(CodegenContext &cc) override;
+};
