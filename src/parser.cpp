@@ -783,23 +783,9 @@ func main() -> Integer {
     printf("Hello %s, number %d\n", (Char*)&args);
     return 0;
 }
-
-// func main() -> Integer {
-//     let a:Char[255] = "HELLO WORLD";
-// 	let con:Char[255] = "hello world";
-// 	// to_upper(&a);
-// 	// to_lower(&a);
-// 	let b:Char[255] = " "; 
-// 	let c:Integer = 12;
-	
-// 	itoa(c, &b); 
-
-// 	string_concat(&a, &con);
-
-//     @Syscall(1, 1, &a, 22, 0, 0);
-//     return 0;
-// }
 )";
+
+
 
   // --- Lexical Analysis ---
   Lexer lexer(src);
