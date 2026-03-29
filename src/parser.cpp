@@ -1,5 +1,6 @@
 #include "ast.h"
 #include "lexer.h"
+#include <Diagnosis.h>
 #include <cctype>
 #include <colors.h>
 #include <cstdlib>
@@ -56,10 +57,21 @@ Token Parser::Expect(TokenType tk) {
     // std::cout << "COMMING HERE " << tokenName(tk) << std::endl;
     return Consume();
   }
-  throw std::runtime_error("EXPECTED " + std::string(tokenName(tk)) + ", GOT " +
-                           tokenName(Peek().type));
+
+  diag.error(loc(), "expected '" + std::string(tokenName(tk)) + "', got '" +
+                        tokenName(Peek().type) + "'");
+
+  throw Diagnostics::FatalError("parse failure");
+
+  // throw std::runtime_error("EXPECTED " + std::string(tokenName(tk)) + ", GOT
+  // " +
+  //                          tokenName(Peek().type));
 }
 
+SourceLoc Parser::loc() {
+  Token t = Peek();
+  return {t.file, t.line, t.col};
+}
 std::unique_ptr<ast> Parser::ParseFactor() {
   if (Peek().type == TokenType::INT_LITERAL) {
     int val = std::stoi(Peek().value);
@@ -263,15 +275,16 @@ std::unique_ptr<ast> Parser::ParseFactor() {
 
       return std::make_unique<DeReferenceNode>(v.value, nullptr);
     }
-    std::cerr << "Huh";
     return nullptr;
 
   } else {
     if (Peek().type == SEMICOLON) {
       return nullptr;
     } else {
-      throw std::runtime_error("Unexpected token in ParseFactor: " +
-                               std::string(tokenName(Peek().type)));
+      diag.error(loc(), "unexpected token '" +
+                            std::string(tokenName(Peek().type)) +
+                            "' in expression");
+      return nullptr;
     }
   }
 }
@@ -359,9 +372,13 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
 
     if (auto arrNode = dynamic_cast<ArrayLiteralNode *>(val.get())) {
       if (arrNode->Elements.size() > size) {
-        throw std::runtime_error("Array size mismatch: declared size " +
-                                 std::to_string(size) + ", got " +
-                                 std::to_string(arrNode->Elements.size()));
+        diag.error(loc(),
+                   "array initializer has " +
+                       std::to_string(arrNode->Elements.size()) +
+                       " elements but declared size is " + std::to_string(size),
+                   "reduce initializer or increase declared size: let x:" +
+                       type.value + "[" +
+                       std::to_string(arrNode->Elements.size()) + "]");
       }
     }
   }
@@ -415,7 +432,7 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
   auto rettype = Expect(TYPES);
   std::unique_ptr<ast> block = ParseStatement();
   if (!block)
-    throw std::runtime_error("Function missing body");
+    diag.error(loc(), "function '" + name.value + "' has no body");
 
   return std::make_unique<FunctionNode>(name.value, args, std::move(block),
                                         rettype, varidicType);
@@ -713,7 +730,7 @@ func itoa(n:Integer, str:Char*) -> Void {
     }
 }
 
-func printf(str:Char*, vals:Char*) ->  Void {
+func printf(str:Char*, vals:Integer*) -> Void {
     let i:Integer = 0;
     let vi:Integer = 0;
     
@@ -721,8 +738,9 @@ func printf(str:Char*, vals:Char*) ->  Void {
         if *str[i] == '%' {
             i = i + 1;
             if *str[i] == 'd' {
-                let num:Integer = *(Integer*)(vals + vi);
-                vi = vi + 8;
+                let holder:Integer* = (Integer*)(vals + vi);
+                let num:Integer = *holder;
+                vi = vi + 1;
                 
                 let buf:Char[32] = "";
                 itoa(num, &buf);
@@ -730,27 +748,6 @@ func printf(str:Char*, vals:Char*) ->  Void {
                 let len:Integer = 0;
                 while (*buf[len] != '\0') { len = len + 1; }
                 @Syscall(1, 1, &buf, len, 0, 0);
-                
-            } else if *str[i] == 's' {
-                let s:Char* = *(Char**)(vals + vi);
-                vi = vi + 8;
-                
-                let len:Integer = 0;
-                while (*s[len] != '\0') { len = len + 1; }
-                @Syscall(1, 1, s, len, 0, 0);
-                
-            } else if *str[i] == 'c' {
-                let ch:Char = *(Char*)(vals + vi);
-                vi = vi + 8;
-                
-                let buf:Char[2] = " ";
-                *buf[0] = ch;
-                *buf[1] = '\0';
-                @Syscall(1, 1, &buf, 1, 0, 0);
-                
-            } else if *str[i] == '%' {
-                let buf:Char[2] = "%";
-                @Syscall(1, 1, &buf, 1, 0, 0);
             }
         } else {
             let buf:Char[2] = " ";
@@ -785,7 +782,15 @@ func main() -> Integer {
 }
 )";
 
+  std::vector<std::string> sourceLines;
+  {
+    std::istringstream ss(src);
+    std::string line;
+    while (std::getline(ss, line))
+      sourceLines.push_back(line);
+  }
 
+  Diagnostics diag(sourceLines);
 
   // --- Lexical Analysis ---
   Lexer lexer(src);
@@ -808,7 +813,7 @@ func main() -> Integer {
             << Colors::RESET << std::endl;
 
   // --- Parsing ---
-  Parser parser(program, "MYMODULE");
+  Parser parser(program, "MYMODULE", diag);
   auto astNodes = parser.Parse();
 
   // std::cout << "AST Nodes:\n";

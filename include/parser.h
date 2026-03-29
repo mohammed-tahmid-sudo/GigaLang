@@ -1,3 +1,4 @@
+#include <Diagnosis.h>
 #include <ast.h>
 #include <lexer.h>
 #include <memory>
@@ -6,10 +7,16 @@ class Parser {
   std::vector<Token> input;
   size_t x = 0;
   CodegenContext cc;
+  Diagnostics &diag;
 
 public:
-  Parser(std::vector<Token> inp, const std::string &s) : input(inp), cc(s) {}
+  Parser(std::vector<Token> inp, const std::string &s, Diagnostics &diag)
+      : input(inp), cc(s), diag(diag) {}
   CodegenContext &getCodegenContext() { return cc; }
+
+  // helper
+  SourceLoc loc();
+
   Token Peek();
   Token PeekNext();
   Token Consume();

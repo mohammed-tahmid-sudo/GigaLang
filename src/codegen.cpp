@@ -175,25 +175,6 @@ llvm::Value *ReturnNode::codegen(CodegenContext &cc) {
   }
 }
 
-// llvm::Value *CompoundNode::codegen(CodegenContext &cc) {
-//   llvm::Value *last = nullptr;
-
-//   cc.pushScope();
-
-//   for (auto &stmt : blocks) {
-//     if (!stmt)
-//       continue;
-//     llvm::Value *val = stmt->codegen(cc);
-//     if (!val) {
-//       llvm::errs() << "Warning: statement returned null in CompoundNode\n";
-//     }
-//     last = val;
-//   }
-
-//   // cc.popScope();
-//   return last;
-// }
-
 llvm::Value *CompoundNode::codegen(CodegenContext &cc) {
   llvm::Value *last = nullptr;
 
@@ -203,18 +184,19 @@ llvm::Value *CompoundNode::codegen(CodegenContext &cc) {
     if (!stmt)
       continue;
 
+    if (cc.Builder->GetInsertBlock()->getTerminator())
+      break;
+
     llvm::Value *val = stmt->codegen(cc);
     if (!val) {
       llvm::errs() << "Warning: statement returned null in CompoundNode\n";
-      continue; // skip nulls
+      continue;
     }
 
     last = val;
 
-    // Only check for return if val is not null
-    if (llvm::isa<llvm::ReturnInst>(val)) {
+    if (llvm::isa<llvm::ReturnInst>(val) || llvm::isa<llvm::BranchInst>(val))
       break;
-    }
   }
 
   cc.popScope();

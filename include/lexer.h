@@ -57,7 +57,7 @@ enum TokenType {
   ANDPERCENT,
   RANGE,
   SEMICOLON,
-  VARIDIC, 
+  VARIDIC,
   // End of file
   EOF_TOKEN
 };
@@ -67,11 +67,20 @@ const char *tokenName(TokenType t);
 struct Token {
   TokenType type;
   std::string value;
+
+  unsigned line = 0;
+  unsigned col = 0;
+
+  std::string file = "<input>";
 };
 
 class Lexer {
   std::string input;
   size_t index = 0;
+
+  unsigned line = 1;                // ← add
+  unsigned col = 1;                 // ← add
+  std::string filename = "<input>"; // ← add
 
 public:
   Lexer(std::string inp) : input(inp) {}
