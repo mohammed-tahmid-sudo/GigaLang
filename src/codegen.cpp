@@ -187,15 +187,9 @@ llvm::Value *CompoundNode::codegen(CodegenContext &cc) {
     if (cc.Builder->GetInsertBlock()->getTerminator())
       break;
 
-    llvm::Value *val = stmt->codegen(cc);
-    if (!val) {
-      llvm::errs() << "Warning: statement returned null in CompoundNode\n";
-      continue;
-    }
+    last = stmt->codegen(cc);
 
-    last = val;
-
-    if (llvm::isa<llvm::ReturnInst>(val) || llvm::isa<llvm::BranchInst>(val))
+    if (cc.Builder->GetInsertBlock()->getTerminator())
       break;
   }
 
@@ -273,15 +267,51 @@ llvm::Value *VariableReferenceNode::codegen(CodegenContext &cc) {
   if (!var)
     throw std::runtime_error("Unknown variable: " + Name);
 
-  llvm::Type *type;
-  if (auto *AI = llvm::dyn_cast<llvm::AllocaInst>(var)) {
-    type = AI->getAllocatedType(); // safe in LLVM 18+
-  } else {
-    throw std::runtime_error("Variable is not an alloca: " + Name);
-  }
+  if (!var->getType()->isPointerTy())
+    return var;
 
-  return cc.Builder->CreateLoad(type, var, Name);
+  llvm::errs() << "Var type: ";
+  var->getType()->print(llvm::errs());
+  llvm::errs() << "\n";
+
+  llvm::Type *elemTy = nullptr;
+
+  if (auto *AI = llvm::dyn_cast<llvm::AllocaInst>(var))
+    elemTy = AI->getAllocatedType();
+  else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(var))
+    elemTy = GV->getValueType();
+  else if (auto *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(var))
+    elemTy = GEP->getResultElementType();
+  else
+    throw std::runtime_error("Cannot determine element type of variable: " +
+                             Name);
+
+  return cc.Builder->CreateLoad(elemTy, var, Name);
 }
+
+// llvm::Value *VariableReferenceNode::codegen(CodegenContext &cc) {
+//   llvm::Value *var = cc.lookup(Name);
+//   if (!var)
+//     throw std::runtime_error("Unknown variable: " + Name);
+
+//   llvm::errs() << "Variable: " << Name << "\n";
+//   llvm::errs() << "LLVM type: ";
+//   var->getType()->print(llvm::errs());
+//   llvm::errs() << "\n";
+
+//   llvm::errs() << "Full value: ";
+//   var->print(llvm::errs());
+//   llvm::errs() << "\n";
+
+//   llvm::Type *type;
+//   if (auto *AI = llvm::dyn_cast<llvm::AllocaInst>(var)) {
+//     type = AI->getAllocatedType(); // safe in LLVM 18+
+//   } else {
+//     throw std::runtime_error("Variable is not an alloca: " + Name);
+//   }
+
+//   return cc.Builder->CreateLoad(type, var, Name);
+// }
 
 llvm::Value *WhileNode::codegen(CodegenContext &cc) {
   llvm::Function *F = cc.Builder->GetInsertBlock()->getParent();
@@ -325,7 +355,8 @@ llvm::Value *WhileNode::codegen(CodegenContext &cc) {
 
   cc.Builder->SetInsertPoint(afterBB);
 
-  return llvm::Constant::getNullValue(llvm::Type::getInt32Ty(Ctx));
+  // return llvm::Constant::getNullValue(llvm::Type::getInt32Ty(Ctx));
+  return nullptr;
 }
 
 llvm::Value *IfNode::codegen(CodegenContext &cc) {
@@ -693,7 +724,8 @@ llvm::Value *ForNode::codegen(CodegenContext &cc) {
 
   cc.Builder->SetInsertPoint(loopEndBB);
 
-  return llvm::Constant::getNullValue(llvm::Type::getInt32Ty(*cc.TheContext));
+  // return llvm::Constant::getNullValue(llvm::Type::getInt32Ty(*cc.TheContext));
+ return nullptr;
 }
 
 llvm::Value *ArrayLiteralNode::codegen(CodegenContext &cc) {
@@ -936,6 +968,10 @@ llvm::Value *DeReferenceNode::codegen(CodegenContext &cc) {
     return nullptr;
   }
   llvm::Type *ptrType = cc.lookupType(name);
+
+  if (nullptr == ptrType) {
+    throw std::runtime_error("NullPointer, Baby");
+  }
   if (!ptrType || !ptrType->isPointerTy()) {
     llvm::errs() << "'" << name << "' is not a pointer\n";
     return nullptr;

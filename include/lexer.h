@@ -20,6 +20,8 @@ enum TokenType {
   CLASS,
   SIZEOF,
   TYPES,
+  BREAK,
+  CONTINUE,
 
   IDENTIFIER,
 

@@ -3,6 +3,7 @@
 #include <Diagnosis.h>
 #include <cctype>
 #include <colors.h>
+#include <cstdio>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
@@ -207,7 +208,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
 
       return std::make_unique<ArrayAccessNode>(name.value, std::move(val));
 
-      return std::make_unique<SizeOfNode>(std::move(val));
+      // return std::make_unique<SizeOfNode>(std::move(val));
 
     } else {
       return std::make_unique<VariableReferenceNode>(name.value);
@@ -534,8 +535,8 @@ std::unique_ptr<ForNode> Parser::ParseFor() {
 
 std::unique_ptr<ast> Parser::ParseAssignment() {
   Token name;
-  if (Peek().type == IDENTIFIER && PeekNext().type == EQ ||
-      PeekNext().type == LBRACKET) {
+  if (Peek().type == IDENTIFIER &&
+      (PeekNext().type == EQ || PeekNext().type == LBRACKET)) {
     name = Expect(IDENTIFIER);
   }
   if (Peek().type == EQ) {
@@ -575,6 +576,12 @@ std::unique_ptr<ast> Parser::ParseStatement() {
     return ParseWhile();
   } else if (Peek().type == FOR) {
     return ParseFor();
+  } else if (Peek().type == BREAK) {
+    Consume();
+    return std::make_unique<BreakNode>();
+  } else if (Peek().type == CONTINUE) {
+    return std::make_unique<ContinueNode>();
+    Consume();
   } else if (Peek().type == IDENTIFIER) {
     if (auto v = ParseAssignment()) {
       return v;
@@ -589,8 +596,10 @@ std::unique_ptr<ast> Parser::ParseStatement() {
       if (Peek().type == SEMICOLON)
         return nullptr;
 
-      throw std::runtime_error("UnExpected Token" +
-                               std::string(tokenName(Peek().type)));
+      // throw std::runtime_error("UnExpected Token" +
+      // std::string(tokenName(Peek().type)));
+      throw Diagnostics::FatalError("Unexpected Token " +
+                                    std::string(tokenName(Peek().type)));
     }
   }
 }
@@ -699,64 +708,98 @@ func string_concat(a:Char*, b:Char*) -> Void {
 func itoa(n:Integer, str:Char*) -> Void {
     let i:Integer = 0;
     let isNegetive:Boolean = false;
+
     if n == 0 {
-        *str[i] = '0';
+        *(str + i) = '0';        ///////////////////////
         i = i + 1;
-        *str[i] = '\0';
+        *(str + i) = '\0';       ///////////////////////
         return;
     }
-    if n < 0 { 
+
+    if n < 0 {
         isNegetive = true;
         n = n - n * 2;
     }
+
     while (n != 0) {
-        *str[i] = (Char)(n - (n / 10) * 10 + 48); 
+        *(str + i) = (Char)(n - (n / 10) * 10 + 48);   ///////////////////////
         i = i + 1;
         n = n / 10;
     }
-    if isNegetive { 
-        *str[i] = '-';
-        i = i + 1; 
+
+    if isNegetive {
+        *(str + i) = '-';        ///////////////////////
+        i = i + 1;
     }
-    *str[i] = '\0';
-    let j:Integer = 0; 
-    let k:Integer = i - 1; 
-    while (j < k) { 
-        let tmp:Char = *str[j];
-        *str[j] = *str[k];
-        *str[k] = tmp;
-        j = j + 1; 
+
+    *(str + i) = '\0';           ///////////////////////
+
+    let j:Integer = 0;
+    let k:Integer = i - 1;
+
+    while (j < k) {
+        let tmp:Char = *(str + j);   ///////////////////////
+        *(str + j) = *(str + k);     ///////////////////////
+        *(str + k) = tmp;            ///////////////////////
+
+        j = j + 1;
         k = k - 1;
     }
 }
 
-func printf(str:Char*, vals:Integer*) -> Void {
-    let i:Integer = 0;
-    let vi:Integer = 0;
-    
-    while (*str[i] != '\0') {
-        if *str[i] == '%' {
-            i = i + 1;
-            if *str[i] == 'd' {
-                let holder:Integer* = (Integer*)(vals + vi);
-                let num:Integer = *holder;
-                vi = vi + 1;
-                
-                let buf:Char[32] = "";
-                itoa(num, &buf);
-                
-                let len:Integer = 0;
-                while (*buf[len] != '\0') { len = len + 1; }
-                @Syscall(1, 1, &buf, len, 0, 0);
-            }
-        } else {
-            let buf:Char[2] = " ";
-            *buf[0] = *str[i];
-            *buf[1] = '\0';
-            @Syscall(1, 1, &buf, 1, 0, 0);
-        }
-        i = i + 1;
-    }
+// func itoa(n:Integer, str:Char*) -> Void {
+//     let i:Integer = 0;
+//     let isNegetive:Boolean = false;
+//     if n == 0 {
+//         *str[i] = '0';
+//         i = i + 1;
+//         *str[i] = '\0';
+//         return;
+//     }
+//     if n < 0 { 
+//         isNegetive = true;
+//         n = n - n * 2;
+//     }
+//     while (n != 0) {
+//         *str[i] = (Char)(n - (n / 10) * 10 + 48); 
+//         i = i + 1;
+//         n = n / 10;
+//     }
+//     if isNegetive { 
+//         *str[i] = '-';
+//         i = i + 1; 
+//     }
+//     *str[i] = '\0';
+//     let j:Integer = 0; 
+//     let k:Integer = i - 1; 
+//     while (j < k) { 
+//         let tmp:Char = *str[j];
+//         *str[j] = *str[k];
+//         *str[k] = tmp;
+//         j = j + 1; 
+//         k = k - 1;
+//     }
+// }
+
+func printf(str: Char*, vals: Char*) -> Void {
+	let i:Integer = 0;
+	let j:Integer = 0;
+	while (*str[i] != '\0') {
+		if *str[i] == '%' {
+			i = i + 1;
+
+			if *str[i] == 's' {
+				let cptr:Char = *vals[j];
+				@Syscall(1, 1, &cptr, 1, 0, 0);
+				j = j + 1;
+				i = i + 1;
+			}
+		}
+		let val:Char = *str[i];
+		@Syscall(1, 1, &val , 1, 0, 0);
+
+		i = i + 1;
+	}
 }
 
 func to_upper(c:Char*) -> Void {
@@ -765,19 +808,26 @@ func to_upper(c:Char*) -> Void {
         if *c[i] >= 'a' && *c[i] <= 'z' {
             *c[i] = (Char)(*c[i] - ('a' - 'A'));
         }
+		if *c[i] == '0' {
+			break;
+		}
         i = i + 1;
     }
+
 }
 
 func main() -> Integer {
-    let name:Char[32] = "World";
+    let name:Char[25];
     let num:Integer = 42;
     
-    let args:Char*[2];
-    args[0] = (Char*)&name;
-    args[1] = (Char*)num;
+    // let args:Char[2] = [name];
     
-    printf("Hello %s, number %d\n", (Char*)&args);
+
+    // printf("Hello %s,  ", (Char*)&args);
+	itoa(588, &name)
+	// printf("Hello %s", &args);  
+		@Syscall(1, 1, &name , 1, 0, 0);
+	
     return 0;
 }
 )";
