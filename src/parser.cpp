@@ -710,9 +710,9 @@ func itoa(n:Integer, str:Char*) -> Void {
     let isNegetive:Boolean = false;
 
     if n == 0 {
-        *(str + i) = '0';        ///////////////////////
+        *str[i] = '0';        ///////////////////////
         i = i + 1;
-        *(str + i) = '\0';       ///////////////////////
+        *str[i] = '\0';       ///////////////////////
         return;
     }
 
@@ -722,64 +722,31 @@ func itoa(n:Integer, str:Char*) -> Void {
     }
 
     while (n != 0) {
-        *(str + i) = (Char)(n - (n / 10) * 10 + 48);   ///////////////////////
+        *str[i] = (Char)(n - (n / 10) * 10 + 48);   ///////////////////////
         i = i + 1;
         n = n / 10;
     }
 
     if isNegetive {
-        *(str + i) = '-';        ///////////////////////
+        *str[i] = '-';        ///////////////////////
         i = i + 1;
     }
 
-    *(str + i) = '\0';           ///////////////////////
+    *str[i] = '\0';           ///////////////////////
 
     let j:Integer = 0;
     let k:Integer = i - 1;
 
     while (j < k) {
-        let tmp:Char = *(str + j);   ///////////////////////
-        *(str + j) = *(str + k);     ///////////////////////
-        *(str + k) = tmp;            ///////////////////////
+        let tmp:Char = *str[j] ;   ///////////////////////
+        *str[j] = *str[k];     ///////////////////////
+        *str[k] = tmp;            ///////////////////////
 
         j = j + 1;
         k = k - 1;
     }
 }
 
-// func itoa(n:Integer, str:Char*) -> Void {
-//     let i:Integer = 0;
-//     let isNegetive:Boolean = false;
-//     if n == 0 {
-//         *str[i] = '0';
-//         i = i + 1;
-//         *str[i] = '\0';
-//         return;
-//     }
-//     if n < 0 { 
-//         isNegetive = true;
-//         n = n - n * 2;
-//     }
-//     while (n != 0) {
-//         *str[i] = (Char)(n - (n / 10) * 10 + 48); 
-//         i = i + 1;
-//         n = n / 10;
-//     }
-//     if isNegetive { 
-//         *str[i] = '-';
-//         i = i + 1; 
-//     }
-//     *str[i] = '\0';
-//     let j:Integer = 0; 
-//     let k:Integer = i - 1; 
-//     while (j < k) { 
-//         let tmp:Char = *str[j];
-//         *str[j] = *str[k];
-//         *str[k] = tmp;
-//         j = j + 1; 
-//         k = k - 1;
-//     }
-// }
 
 func printf(str: Char*, vals: Char*) -> Void {
 	let i:Integer = 0;
@@ -790,6 +757,15 @@ func printf(str: Char*, vals: Char*) -> Void {
 
 			if *str[i] == 's' {
 				let cptr:Char = *vals[j];
+				@Syscall(1, 1, &cptr, 1, 0, 0);
+				j = j + 1;
+				i = i + 1;
+			} else if *str[i] =='d' {
+				let val:Integer = (Integer)(*val[j]);
+				let cptr:Char[32];
+
+				itoa(val, &cptr);
+
 				@Syscall(1, 1, &cptr, 1, 0, 0);
 				j = j + 1;
 				i = i + 1;
@@ -818,7 +794,7 @@ func to_upper(c:Char*) -> Void {
 
 func main() -> Integer {
     let name:Char[25];
-    let num:Integer = 42;
+	let num:Integer = 42;
     
     // let args:Char[2] = [name];
     
@@ -826,7 +802,7 @@ func main() -> Integer {
     // printf("Hello %s,  ", (Char*)&args);
 	itoa(588, &name)
 	// printf("Hello %s", &args);  
-		@Syscall(1, 1, &name , 1, 0, 0);
+		// @Syscall(1, 1, &name , sizeof(name), 0, 0);
 	
     return 0;
 }
