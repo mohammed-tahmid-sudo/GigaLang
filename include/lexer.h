@@ -18,6 +18,7 @@ enum TokenType {
   IN,
   WHILE,
   CLASS,
+  STRUCT,
   SIZEOF,
   TYPES,
   BREAK,

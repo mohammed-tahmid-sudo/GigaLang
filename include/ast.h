@@ -341,3 +341,13 @@ struct CastNode : ast {
 
   llvm::Value *codegen(CodegenContext &cc) override;
 };
+
+struct StructCreateNode : ast {
+  std::vector<llvm::Type*> types;
+  std::string name;
+  StructCreateNode(std::string &s, std::vector<llvm::Type*> tps) : name(s), types(tps) {}
+  std::string repr() override { return "CastNode"; }
+
+  llvm::Value *codegen(CodegenContext &cc) override;
+
+};

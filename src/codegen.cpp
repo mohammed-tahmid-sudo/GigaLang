@@ -724,8 +724,9 @@ llvm::Value *ForNode::codegen(CodegenContext &cc) {
 
   cc.Builder->SetInsertPoint(loopEndBB);
 
-  // return llvm::Constant::getNullValue(llvm::Type::getInt32Ty(*cc.TheContext));
- return nullptr;
+  // return
+  // llvm::Constant::getNullValue(llvm::Type::getInt32Ty(*cc.TheContext));
+  return nullptr;
 }
 
 llvm::Value *ArrayLiteralNode::codegen(CodegenContext &cc) {
@@ -1042,6 +1043,29 @@ llvm::Value *castValue(llvm::IRBuilder<> &builder, llvm::Value *val,
 llvm::Value *CastNode::codegen(CodegenContext &cc) {
   llvm::Value *v = Value->codegen(cc);
   return castValue(*cc.Builder, v, targetType, true);
+}
+
+llvm::Value *StructCreateNode::codegen(CodegenContext &cc) {
+  llvm::LLVMContext &context = *cc.TheContext;
+
+  // LLVM 15+ way to lookup struct
+  llvm::StructType *structType = llvm::StructType::getTypeByName(context, name);
+
+  if (!structType) {
+    // Create new struct
+    structType = llvm::StructType::create(context, name);
+    structType->setBody(types, false);
+  } else {
+    // Handle forward declaration
+    if (structType->isOpaque()) {
+      structType->setBody(types, false);
+    }
+  }
+
+  // Store in your context (type, not value)
+  cc.addVariable(name, nullptr, structType, nullptr);
+
+  return nullptr; // no runtime value
 }
 
 // int main() {

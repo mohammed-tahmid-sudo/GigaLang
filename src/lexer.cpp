@@ -234,6 +234,10 @@ std::vector<Token> Lexer::lexer() {
         out.push_back(make(WHILE, id));
         continue;
       }
+      if (lower == "struct") {
+        out.push_back(make(STRUCT, id));
+        continue;
+      }
       if (lower == "class") {
         out.push_back(make(CLASS, id));
         continue;
@@ -244,11 +248,11 @@ std::vector<Token> Lexer::lexer() {
       }
       if (lower == "break") {
         out.push_back(make(BREAK, id));
-		continue;
+        continue;
       }
       if (lower == "continue") {
         out.push_back(make(CONTINUE, id));
-		continue;
+        continue;
       }
 
       if (id == "Integer" || id == "Float" || id == "Boolean" ||
@@ -506,6 +510,8 @@ const char *tokenName(TokenType t) {
     return "CONTINUE";
   case BREAK:
     return "BREAK";
+  case STRUCT:
+	return "STRUCT";
   default:
     return "UNKNOWN";
   }
@@ -532,7 +538,7 @@ const char *tokenName(TokenType t) {
 //   } else {
 // 	2 + 1;
 //   }
-  
+
 //   while (True) {
 // 	break;
 //   }
@@ -540,6 +546,10 @@ const char *tokenName(TokenType t) {
 //   for i in 0..10 {
 // 	2 + 1;
 //   }
+
+//   struct RandomStruct {
+// 	let a:Integer;
+//   };
 
 //   )";
 
@@ -577,7 +587,8 @@ const char *tokenName(TokenType t) {
 // }
 
 // // Helper: find the Nth token (0-based) with a given type in the token list
-// const Token *findNth(const std::vector<Token> &toks, TokenType t, int n = 0) {
+// const Token *findNth(const std::vector<Token> &toks, TokenType t, int n = 0)
+// {
 //   int count = 0;
 //   for (auto &tok : toks)
 //     if (tok.type == t && count++ == n)
@@ -608,15 +619,15 @@ const char *tokenName(TokenType t) {
 //   auto toks = lex.lexer();
 
 //   check(toks[0].type == TYPES, "Integer* is TYPES");
-//   check(toks[0].value == "IntegerPOINTER", "Integer* value is IntegerPOINTER");
-//   check(toks[1].type == TYPES, "Char* is TYPES");
+//   check(toks[0].value == "IntegerPOINTER", "Integer* value is
+//   IntegerPOINTER"); check(toks[1].type == TYPES, "Char* is TYPES");
 //   check(toks[1].value == "CharPOINTER", "Char* value is CharPOINTER");
 // }
 
 // void test_keywords() {
 //   section("Keyword tokens");
-//   Lexer lex("let func return if else for in while class sizeof break continue ");
-//   auto toks = lex.lexer();
+//   Lexer lex("let func return if else for in while class sizeof break continue
+//   "); auto toks = lex.lexer();
 
 //   check(toks[0].type == LET, "let");
 //   check(toks[1].type == FUNC, "func");
@@ -671,7 +682,8 @@ const char *tokenName(TokenType t) {
 
 //   check(toks[0].type == FLOAT_LITERAL && toks[0].value == "3.14", "3.14");
 //   check(toks[1].type == FLOAT_LITERAL && toks[1].value == "0.5", "0.5");
-//   check(toks[2].type == FLOAT_LITERAL && toks[2].value == "100.001", "100.001");
+//   check(toks[2].type == FLOAT_LITERAL && toks[2].value == "100.001",
+//   "100.001");
 // }
 
 // void test_string_literals() {

@@ -561,6 +561,16 @@ std::unique_ptr<ast> Parser::ParseAssignment() {
   return nullptr;
 }
 
+std::unique_ptr<StructCreateNode> Parser::ParseStruct() {
+  Expect(STRUCT);
+  Token name = Expect(IDENTIFIER);
+  Expect(LBRACKET);
+  std::vector<llvm::Type*> type;
+  while (Peek().type != RBRACKET) {
+		
+  }
+}
+
 std::unique_ptr<ast> Parser::ParseStatement() {
   if (Peek().type == TokenType::LET) {
     return ParseVariable();
