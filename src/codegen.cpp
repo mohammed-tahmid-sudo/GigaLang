@@ -9,6 +9,7 @@
 #include <llvm-18/llvm/IR/DerivedTypes.h>
 #include <llvm-18/llvm/IR/Function.h>
 #include <llvm-18/llvm/IR/Instructions.h>
+#include <llvm-18/llvm/IR/Intrinsics.h>
 #include <llvm-18/llvm/IR/LLVMContext.h>
 #include <llvm-18/llvm/IR/Metadata.h>
 #include <llvm-18/llvm/IR/Type.h>
@@ -18,6 +19,8 @@
 #include <llvm-18/llvm/Support/raw_ostream.h>
 #include <memory>
 #include <stdexcept>
+#include <strings.h>
+#include <utility>
 #include <vector>
 
 llvm::Type *GetPointeeType(Token typeToken, llvm::LLVMContext &context) {
@@ -33,7 +36,7 @@ llvm::Type *GetPointeeType(Token typeToken, llvm::LLVMContext &context) {
   return nullptr;
 }
 
-llvm::Type *GetTypeNonVoid(Token type, llvm::LLVMContext &context) {
+llvm::Type *GetTypeNonVoid(Token type, CodegenContext *cc) {
   std::string t = type.value;
 
   for (char &c : t)
@@ -42,34 +45,38 @@ llvm::Type *GetTypeNonVoid(Token type, llvm::LLVMContext &context) {
   if (t.size() > 7 && t.substr(t.size() - 7) == "POINTER") {
     Token baseTypeToken;
     baseTypeToken.value = t.substr(0, t.size() - 7);
-    llvm::Type *baseType = GetTypeNonVoid(baseTypeToken, context);
+    llvm::Type *baseType = GetTypeNonVoid(baseTypeToken, *cc->TheContext);
     return llvm::PointerType::get(baseType, 0);
   }
 
+  if (type.type == IDENTIFIER) {
+
+  }
+
   if (t == "INTEGER") {
-    return llvm::Type::getInt32Ty(context);
+    return llvm::Type::getInt32Ty(*cc->TheContext);
   } else if (t == "FLOAT") {
-    return llvm::Type::getFloatTy(context);
+    return llvm::Type::getFloatTy(*cc->TheContext);
   } else if (t == "STRING") {
-    return llvm::Type::getInt8Ty(context);
+    return llvm::Type::getInt8Ty(*cc->TheContext);
   } else if (t == "BOOLEAN") {
-    return llvm::Type::getInt1Ty(context);
+    return llvm::Type::getInt1Ty(*cc->TheContext);
   } else if (t == "CHAR") {
-    return llvm::Type::getInt8Ty(context);
+    return llvm::Type::getInt8Ty(*cc->TheContext);
   }
 
   throw std::runtime_error("Invalid Type: " + type.value);
   return nullptr;
 }
 
-llvm::Type *GetTypeVoid(Token type, llvm::LLVMContext &context) {
+llvm::Type *GetTypeVoid(Token type, CodegenContext *cc) {
   for (char &c : type.value)
     c = toupper(c);
 
   if (type.value == "VOID")
-    return llvm::Type::getVoidTy(context);
+    return llvm::Type::getVoidTy(*cc->TheContext);
 
-  return GetTypeNonVoid(type, context);
+  return GetTypeNonVoid(type, *cc->TheContext);
 }
 
 llvm::Value *CharNode::codegen(CodegenContext &cc) {
@@ -1050,11 +1057,19 @@ llvm::Value *StructCreateNode::codegen(CodegenContext &cc) {
   std::vector<llvm::Type *> fieldTypes;
   fieldTypes.reserve(types.size());
 
+  std::vector<std::pair<std::string, size_t>> indexs;
+  size_t i = 0;
   for (const auto &p : types) {
     fieldTypes.push_back(p.second);
+    indexs.push_back({p.first, i});
+    i++;
   }
 
   TheStruct->setBody(fieldTypes);
+
+  auto idx = std::make_unique<StructIndex>(TheStruct, indexs);
+
+  cc.StructIndexList.push_back({name, std::move(idx)});
 
   return nullptr;
 }

@@ -20,7 +20,10 @@ struct VWT {
 
 struct StructIndex {
   llvm::StructType *TheStruct;
-  std::vector<std::pair<std::string, int>> index;
+  std::vector<std::pair<std::string, size_t>> index;
+  StructIndex(llvm::StructType *thestruct,
+              std::vector<std::pair<std::string, size_t>> idx)
+      : TheStruct(thestruct), index(idx) {}
 };
 
 struct CodegenContext {
@@ -28,7 +31,8 @@ struct CodegenContext {
   std::unique_ptr<llvm::IRBuilder<>> Builder;
   std::unique_ptr<llvm::Module> Module;
   std::vector<std::unordered_map<std::string, VWT>> NamedValuesStack;
-  std::vector<std::pair<std::string, StructIndex *>> StructIndexList;
+  std::vector<std::pair<std::string, std::unique_ptr<StructIndex>>>
+      StructIndexList;
 
   llvm::BasicBlock *BreakBB = nullptr;
   llvm::BasicBlock *ContinueBB = nullptr;
@@ -353,9 +357,9 @@ struct CastNode : ast {
 struct StructCreateNode : ast {
   std::vector<std::pair<std::string, llvm::Type *>> types;
   std::string name;
-  StructCreateNode(std::string &s,
+  StructCreateNode(const std::string &s,
                    std::vector<std::pair<std::string, llvm::Type *>> tps)
-      : name(s), types(tps) {}
+      : name(s), types(std::move(tps)) {}
   std::string repr() override { return "CastNode"; }
 
   llvm::Value *codegen(CodegenContext &cc) override;

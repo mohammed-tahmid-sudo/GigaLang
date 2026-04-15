@@ -565,10 +565,23 @@ std::unique_ptr<StructCreateNode> Parser::ParseStruct() {
   Expect(STRUCT);
   Token name = Expect(IDENTIFIER);
   Expect(LBRACKET);
-  std::vector<llvm::Type*> type;
+  std::vector<std::pair<std::string, llvm::Type *>> types;
   while (Peek().type != RBRACKET) {
-		
+    Token identifier = Expect(IDENTIFIER);
+    Expect(COLON);
+    Token type = Expect(TYPES);
+    types.push_back(
+        std::make_pair(identifier.value, GetTypeNonVoid(type, *cc.TheContext)));
+
+    if (Peek().type == COMMA) {
+      Expect(COMMA);
+    } else {
+      break;
+    }
   }
+  Expect(RBRACKET);
+  Expect(SEMICOLON);
+  return std::make_unique<StructCreateNode>(name.value, types);
 }
 
 std::unique_ptr<ast> Parser::ParseStatement() {
@@ -586,6 +599,8 @@ std::unique_ptr<ast> Parser::ParseStatement() {
     return ParseWhile();
   } else if (Peek().type == FOR) {
     return ParseFor();
+  } else if (Peek().type == STRUCT) {
+    return ParseStruct();
   } else if (Peek().type == BREAK) {
     Consume();
     return std::make_unique<BreakNode>();
@@ -803,6 +818,13 @@ func to_upper(c:Char*) -> Void {
     }
 
 }
+
+struct name [
+	a:Integer, 
+	b:Char
+]; 
+
+
 
 func main() -> Integer {
     let name:Char[25];
