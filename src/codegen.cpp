@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 
-llvm::Type *GetPointeeType(Token typeToken, llvm::LLVMContext &context) {
+llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc) {
   std::string t = typeToken.value;
   for (char &c : t)
     c = toupper(c);
@@ -31,12 +31,12 @@ llvm::Type *GetPointeeType(Token typeToken, llvm::LLVMContext &context) {
   if (t.size() > 7 && t.substr(t.size() - 7) == "POINTER") {
     Token baseToken;
     baseToken.value = t.substr(0, t.size() - 7); // strip "POINTER"
-    return GetTypeNonVoid(baseToken, context); // "CHAR" -> i8, "INTEGER" -> i32
+    return GetTypeNonVoid(baseToken, cc); // "CHAR" -> i8, "INTEGER" -> i32
   }
   return nullptr;
 }
 
-llvm::Type *GetTypeNonVoid(Token type, CodegenContext *cc) {
+llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
   std::string t = type.value;
 
   for (char &c : t)
@@ -45,38 +45,39 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext *cc) {
   if (t.size() > 7 && t.substr(t.size() - 7) == "POINTER") {
     Token baseTypeToken;
     baseTypeToken.value = t.substr(0, t.size() - 7);
-    llvm::Type *baseType = GetTypeNonVoid(baseTypeToken, *cc->TheContext);
+    llvm::Type *baseType = GetTypeNonVoid(baseTypeToken, cc);
     return llvm::PointerType::get(baseType, 0);
   }
 
   if (type.type == IDENTIFIER) {
-
+    auto it = *cc.StructIndexList.find(type.value)->second;
+    return it.TheStruct;
   }
 
   if (t == "INTEGER") {
-    return llvm::Type::getInt32Ty(*cc->TheContext);
+    return llvm::Type::getInt32Ty(*cc.TheContext);
   } else if (t == "FLOAT") {
-    return llvm::Type::getFloatTy(*cc->TheContext);
+    return llvm::Type::getFloatTy(*cc.TheContext);
   } else if (t == "STRING") {
-    return llvm::Type::getInt8Ty(*cc->TheContext);
+    return llvm::Type::getInt8Ty(*cc.TheContext);
   } else if (t == "BOOLEAN") {
-    return llvm::Type::getInt1Ty(*cc->TheContext);
+    return llvm::Type::getInt1Ty(*cc.TheContext);
   } else if (t == "CHAR") {
-    return llvm::Type::getInt8Ty(*cc->TheContext);
+    return llvm::Type::getInt8Ty(*cc.TheContext);
   }
 
   throw std::runtime_error("Invalid Type: " + type.value);
   return nullptr;
 }
 
-llvm::Type *GetTypeVoid(Token type, CodegenContext *cc) {
+llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
   for (char &c : type.value)
     c = toupper(c);
 
   if (type.value == "VOID")
-    return llvm::Type::getVoidTy(*cc->TheContext);
+    return llvm::Type::getVoidTy(*cc.TheContext);
 
-  return GetTypeNonVoid(type, *cc->TheContext);
+  return GetTypeNonVoid(type, cc);
 }
 
 llvm::Value *CharNode::codegen(CodegenContext &cc) {
@@ -106,7 +107,7 @@ llvm::Value *BooleanNode::codegen(CodegenContext &cc) {
 // }
 
 llvm::Value *VariableDeclareNode::codegen(CodegenContext &cc) {
-  llvm::Type *elementType = GetTypeNonVoid(Type, *cc.TheContext);
+  llvm::Type *elementType = GetTypeNonVoid(Type, cc);
   llvm::AllocaInst *alloca = nullptr;
 
   if (!cc.Builder->GetInsertBlock())
@@ -150,7 +151,7 @@ llvm::Value *VariableDeclareNode::codegen(CodegenContext &cc) {
     Token baseTypeToken;
     baseTypeToken.value =
         Type.value.substr(0, Type.value.size() - 7); // strip "POINTER"
-    pointeeType = GetTypeNonVoid(baseTypeToken, *cc.TheContext);
+    pointeeType = GetTypeNonVoid(baseTypeToken, cc);
   }
   cc.addVariable(name, alloca, elementType, pointeeType);
   return alloca;
@@ -209,7 +210,7 @@ llvm::Value *FunctionNode::codegen(CodegenContext &cc) {
   for (auto &a : args)
     argTypes.push_back(std::get<1>(a)); // was a.second
 
-  llvm::Type *retTy = GetTypeVoid(ReturnType, *cc.TheContext);
+  llvm::Type *retTy = GetTypeVoid(ReturnType, cc);
   auto *FT = llvm::FunctionType::get(retTy, argTypes, isVaridic);
   auto *Fn = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, name,
                                     cc.Module.get());
@@ -1069,7 +1070,7 @@ llvm::Value *StructCreateNode::codegen(CodegenContext &cc) {
 
   auto idx = std::make_unique<StructIndex>(TheStruct, indexs);
 
-  cc.StructIndexList.push_back({name, std::move(idx)});
+  cc.StructIndexList.emplace(name, std::move(idx));
 
   return nullptr;
 }

@@ -31,8 +31,7 @@ struct CodegenContext {
   std::unique_ptr<llvm::IRBuilder<>> Builder;
   std::unique_ptr<llvm::Module> Module;
   std::vector<std::unordered_map<std::string, VWT>> NamedValuesStack;
-  std::vector<std::pair<std::string, std::unique_ptr<StructIndex>>>
-      StructIndexList;
+  std::unordered_map<std::string, std::unique_ptr<StructIndex>> StructIndexList;
 
   llvm::BasicBlock *BreakBB = nullptr;
   llvm::BasicBlock *ContinueBB = nullptr;
@@ -75,9 +74,9 @@ struct CodegenContext {
         Module(std::make_unique<llvm::Module>(name, *TheContext)) {}
 };
 
-llvm::Type *GetTypeNonVoid(Token type, llvm::LLVMContext &context);
-
-llvm::Type *GetTypeVoid(Token type, llvm::LLVMContext &context);
+llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc);
+llvm::Type *GetTypeVoid(Token type, CodegenContext &cc);
+llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc);
 
 struct ast {
   virtual ~ast() = default;
@@ -355,10 +354,10 @@ struct CastNode : ast {
 };
 
 struct StructCreateNode : ast {
-  std::vector<std::pair<std::string, llvm::Type *>> types;
+  std::unordered_map<std::string, llvm::Type *> types;
   std::string name;
   StructCreateNode(const std::string &s,
-                   std::vector<std::pair<std::string, llvm::Type *>> tps)
+                   std::unordered_map<std::string, llvm::Type *> tps)
       : name(s), types(std::move(tps)) {}
   std::string repr() override { return "CastNode"; }
 

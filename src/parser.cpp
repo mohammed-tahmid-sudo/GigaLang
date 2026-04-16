@@ -29,6 +29,7 @@
 #include <parser.h>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -130,7 +131,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
       auto val = ParseExpression();
 
       return std::make_unique<CastNode>(std::move(val),
-                                        GetTypeNonVoid(type, *cc.TheContext));
+                                        GetTypeNonVoid(type, cc));
     }
 
     auto val = ParseExpression();
@@ -356,7 +357,16 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
   Token name = Expect(TokenType::IDENTIFIER);
 
   Expect(TokenType::COLON);
-  Token type = Expect(TokenType::TYPES);
+  Token type;
+
+  if (Peek().type == TokenType::TYPES) {
+    type = Expect(TokenType::TYPES);
+  } else if (Peek().type == TokenType::IDENTIFIER) {
+    type = Expect(TokenType::IDENTIFIER);
+  } else {
+    throw std::runtime_error("Expected TYPES or IDENTIFIER");
+  }
+
   unsigned size = 1;
 
   if (Peek().type == TokenType::LBRACKET) {
@@ -401,7 +411,7 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
     Token paramName = Expect(IDENTIFIER);
     Expect(COLON);
     Token type = Expect(TYPES);
-    llvm::Type *llvmType = GetTypeVoid(type, *cc.TheContext);
+    llvm::Type *llvmType = GetTypeVoid(type, cc);
 
     unsigned arraySize = 0;
     if (Peek().type == LBRACKET) {
@@ -565,13 +575,14 @@ std::unique_ptr<StructCreateNode> Parser::ParseStruct() {
   Expect(STRUCT);
   Token name = Expect(IDENTIFIER);
   Expect(LBRACKET);
-  std::vector<std::pair<std::string, llvm::Type *>> types;
+
+  std::unordered_map<std::string, llvm::Type *> types;
   while (Peek().type != RBRACKET) {
     Token identifier = Expect(IDENTIFIER);
     Expect(COLON);
     Token type = Expect(TYPES);
-    types.push_back(
-        std::make_pair(identifier.value, GetTypeNonVoid(type, *cc.TheContext)));
+
+    types.emplace(identifier.value, GetTypeNonVoid(type, cc));
 
     if (Peek().type == COMMA) {
       Expect(COMMA);
@@ -820,8 +831,8 @@ func to_upper(c:Char*) -> Void {
 }
 
 struct name [
-	a:Integer, 
-	b:Char
+	b:Char, 
+	k:Integer
 ]; 
 
 
@@ -829,6 +840,8 @@ struct name [
 func main() -> Integer {
     let name:Char[25];
 	let num:Integer = 42;
+
+	let something:name = ['a'];
     
     let args:Char[2] = [(Char)(num)];
     
