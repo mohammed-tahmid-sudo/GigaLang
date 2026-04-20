@@ -1,8 +1,14 @@
-# My Basic Compiler Grammar
+GigaLang
 
-# BASIC-Like Programming Language Grammar
+GigaLang is still in development and is being written in C++ with an LLVM backend.
 
-```ebnf 
+I would probably accept pull requests, but don’t get your hopes too high—you might not be able to read the code yet.
+
+Big compiler developers, please don’t yell at me. I’m still a small compiler developer.
+
+My dream is to make this compiler self-hosted. I know it’s a big dream, but who cares—you’re just dreaming too.
+
+Program Structure
 program         ::= header_section? { statement ";" }
 
 header_section  ::= { header_line ";" }
@@ -38,7 +44,7 @@ expr            ::= literal
                   | func_call
                   | "(" expr ")"
 
-binary_op       ::= "+" | "-" | "*" | "/" | "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||" | "!="
+binary_op       ::= "+" | "-" | "*" | "/" | "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||"
 
 literal         ::= integer_literal
                   | float_literal
@@ -61,17 +67,7 @@ for_stmt ::= "for" "(" (var_decl | assignment) ";"
                          assignment ")"
               "{" { statement ";" } "}"
 
-
 while_stmt      ::= "while" expr "{" { statement ";" } "}"
-
-// Classes
-<!-- class_decl      ::= "class" identifier "{" { class_member ";" } "}" -->
-<!-- class_member    ::= var_decl -->
-<!--                   | func_decl -->
-<!--                   | constructor_decl -->
-
-// Constructor (C-style, same name as class)
-<!-- constructor_decl ::= "func" identifier "(" [ param_list ] ")" "{" { statement ";" } "}" -->
 
 // Identifiers and literals
 identifier      ::= letter { letter | digit | "_" }
@@ -83,5 +79,3 @@ string_literal  ::= '"' { any_character } '"'
 letter          ::= "a".."z" | "A".."Z"
 digit           ::= "0".."9"
 any_character   ::= ? any valid character ?
-
-```

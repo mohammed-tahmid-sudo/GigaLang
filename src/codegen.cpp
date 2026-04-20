@@ -272,8 +272,6 @@ llvm::Value *FunctionNode::codegen(CodegenContext &cc) {
 
 llvm::Value *VariableReferenceNode::codegen(CodegenContext &cc) {
   llvm::Value *var = cc.lookup(Name);
-  if (!var)
-    throw std::runtime_error("Unknown variable: " + Name);
 
   if (!var->getType()->isPointerTy())
     return var;

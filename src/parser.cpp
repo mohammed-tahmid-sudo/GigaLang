@@ -1,11 +1,11 @@
 #include "ast.h"
+#include <iomanip>
 #include "lexer.h"
 #include <Diagnosis.h>
 #include <cctype>
 #include <colors.h>
 #include <cstdio>
 #include <cstdlib>
-#include <iomanip>
 #include <iostream>
 #include <llvm-18/llvm/ADT/STLExtras.h>
 #include <llvm-18/llvm/IR/DerivedTypes.h>
@@ -716,206 +716,202 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
 // Main Function
 // ===============================
 
-int main() {
-  // --- Source Code to Compile ---
-  std::string src = R"(
+// int main() {
+//   // --- Source Code to Compile ---
+//   std::string src = R"(
 
-func to_lower(c:Char*) -> Void {
-    let i:Integer = 0;
-    while (*c[i] != '\0') {
-        if *c[i] >= 'A' && *c[i] <= 'Z' {
-            *c[i] = (Char)(*c[i] + ('a' - 'A'));
-        }
-        i = i + 1;
-    }
-}
+// func to_lower(c:Char*) -> Void {
+//     let i:Integer = 0;
+//     while (*c[i] != '\0') {
+//         if *c[i] >= 'A' && *c[i] <= 'Z' {
+//             *c[i] = (Char)(*c[i] + ('a' - 'A'));
+//         }
+//         i = i + 1;
+//     }
+// }
 
-func string_concat(a:Char*, b:Char*) -> Void {
-    let i:Integer = 0;
-    while (*a[i] != 0) { i = i + 1; }  // find end of a
-    let j:Integer = 0;
-    while (*b[j] != 0) {               // walk b
-        *a[i + j] = *b[j];            // append b onto end of a
-        j = j + 1;
-    }
-    *a[i + j] = 0;
-}
+// func string_concat(a:Char*, b:Char*) -> Void {
+//     let i:Integer = 0;
+//     while (*a[i] != 0) { i = i + 1; }  // find end of a
+//     let j:Integer = 0;
+//     while (*b[j] != 0) {               // walk b
+//         *a[i + j] = *b[j];            // append b onto end of a
+//         j = j + 1;
+//     }
+//     *a[i + j] = 0;
+// }
 
-func itoa(n:Integer, str:Char*) -> Integer  {
-    let i:Integer = 0;
-    let isNegetive:Boolean = false;
+// func itoa(n:Integer, str:Char*) -> Integer  {
+//     let i:Integer = 0;
+//     let isNegetive:Boolean = false;
 
-    if n == 0 {
-        *str[i] = '0';        ///////////////////////
-        i = i + 1;
-        *str[i] = '\0';       ///////////////////////
-        return i;
-    }
+//     if n == 0 {
+//         *str[i] = '0';        ///////////////////////
+//         i = i + 1;
+//         *str[i] = '\0';       ///////////////////////
+//         return i;
+//     }
 
-    if n < 0 {
-        isNegetive = true;
-        n = n - n * 2;
-    }
+//     if n < 0 {
+//         isNegetive = true;
+//         n = n - n * 2;
+//     }
 
-    while (n != 0) {
-        *str[i] = (Char)(n - (n / 10) * 10 + 48);   ///////////////////////
-        i = i + 1;
-        n = n / 10;
-    }
+//     while (n != 0) {
+//         *str[i] = (Char)(n - (n / 10) * 10 + 48);   ///////////////////////
+//         i = i + 1;
+//         n = n / 10;
+//     }
 
-    if isNegetive {
-        *str[i] = '-';        ///////////////////////
-        i = i + 1;
-    }
+//     if isNegetive {
+//         *str[i] = '-';        ///////////////////////
+//         i = i + 1;
+//     }
 
-    *str[i] = '\0';           ///////////////////////
+//     *str[i] = '\0';           ///////////////////////
 
-    let j:Integer = 0;
-    let k:Integer = i - 1;
+//     let j:Integer = 0;
+//     let k:Integer = i - 1;
 
-    while (j < k) {
-        let tmp:Char = *str[j] ;   ///////////////////////
-        *str[j] = *str[k];     ///////////////////////
-        *str[k] = tmp;            ///////////////////////
+//     while (j < k) {
+//         let tmp:Char = *str[j] ;   ///////////////////////
+//         *str[j] = *str[k];     ///////////////////////
+//         *str[k] = tmp;            ///////////////////////
 
-        j = j + 1;
-        k = k - 1;
-    }
+//         j = j + 1;
+//         k = k - 1;
+//     }
 
-  return i;
-}
-
-
-func printf(str: Char*, vals: Char*) -> Void {
-	let i:Integer = 0;
-	let j:Integer = 0;
-	while (*str[i] != '\0') {
-		if *str[i] == '%' {
-			i = i + 1;
-
-			if *str[i] == 's' {
-				let cptr:Char = *vals[j];
-				@Syscall(1, 1, &cptr, 1, 0, 0);
-				j = j + 1;
-				i = i + 1;
-			} else if *str[i] =='d' {
-				let val:Integer = (Integer)*vals[j];
-				let cptr:Char[32];
-
-				let len:Integer = itoa(val, &cptr);
-
-				@Syscall(1, 1, &cptr, len, 0, 0);
-				j = j + 1;
-				i = i + 1;
-			}
-		}
-		let val:Char = *str[i];
-		@Syscall(1, 1, &val , 1, 0, 0);
-
-		i = i + 1;
-	}
-}
-
-func to_upper(c:Char*) -> Void {
-    let i:Integer = 0;
-    while (*c[i] != '\0') {
-        if *c[i] >= 'a' && *c[i] <= 'z' {
-            *c[i] = (Char)(*c[i] - ('a' - 'A'));
-        }
-		if *c[i] == '0' {
-			break;
-		}
-        i = i + 1;
-    }
-
-}
-
-struct name [
-	b:Char, 
-	k:Integer
-]; 
+//   return i;
+// }
 
 
+// func printf(str: Char*, vals: Char*) -> Void {
+// 	let i:Integer = 0;
+// 	let j:Integer = 0;
+// 	while (*str[i] != '\0') {
+// 		if *str[i] == '%' {
+// 			i = i + 1;
 
-func main() -> Integer {
-    let name:Char[25];
-	let num:Integer = 42;
+// 			if *str[i] == 's' {
+// 				// let cptr:Char = *vals[j];
+// 				// @Syscall(1, 1, &cptr, 1, 0, 0);
+// 				@Syscall(1, 1, *vals + j, 1, 0, 0);
 
-	let something:name = ['a'];
+// 				j = j + 1;
+// 				i = i + 1;
+// 			} else if *str[i] =='d' {
+// 				let val:Integer = (Integer)*vals[j];
+// 				let cptr:Char[32];
+
+// 				let len:Integer = itoa(val, &cptr);
+
+// 				@Syscall(1, 1, &cptr, len, 0, 0);
+// 				j = j + 1;
+// 				i = i + 1;
+// 			}
+// 		}
+// 		let val:Char = *str[i];
+// 		@Syscall(1, 1, &val , 1, 0, 0);
+
+// 		i = i + 1;
+// 	}
+// }
+
+// func to_upper(c:Char*) -> Void {
+//     let i:Integer = 0;
+//     while (*c[i] != '\0') {
+//         if *c[i] >= 'a' && *c[i] <= 'z' {
+//             *c[i] = (Char)(*c[i] - ('a' - 'A'));
+//         }
+// 		if *c[i] == '0' {
+// 			break;
+// 		}
+//         i = i + 1;
+//     }
+
+// }
+
+// struct name [
+// 	b:Char, 
+// 	k:Integer
+// ]; 
+
+// func main() -> Integer {
+
+// 	let something:name = ['a'];
     
-    let args:Char[2] = [(Char)(num)];
-    
+//     let num:Integer = 42;
+//     let numPtr: Char* = (Char*)&num;     // cast address of num to Char*
 
-    // printf("Hello %s,  ", (Char*)&args);
-	// itoa(588, &name)
-	printf("Hello %d", &args);  
-		// @Syscall(1, 1, &name , sizeof(name), 0, 0);
-	
-    return 0;
-}
-)";
+//     printf("Hello %d\n", numPtr);        // added \n at the end
 
-  std::vector<std::string> sourceLines;
-  {
-    std::istringstream ss(src);
-    std::string line;
-    while (std::getline(ss, line))
-      sourceLines.push_back(line);
-  }
 
-  Diagnostics diag(sourceLines);
+//     return 0;
+// }
+// )";
 
-  // --- Lexical Analysis ---
-  Lexer lexer(src);
-  auto program = lexer.lexer();
+//   std::vector<std::string> sourceLines;
+//   {
+//     std::istringstream ss(src);
+//     std::string line;
+//     while (std::getline(ss, line))
+//       sourceLines.push_back(line);
+//   }
 
-  std::cout << "Tokens:\n";
-  int count = 0;
-  for (const auto &stmt : program) {
-    std::cout << tokenName(stmt.type) << ":'" << stmt.value << "'  ";
-    count++;
-    if (count % 5 == 0) // 5 tokens per line
-      std::cout << "\n";
-  }
-  if (count % 5 != 0)
-    std::cout << "\n"; // print final newline if needed
+//   Diagnostics diag(sourceLines);
 
-  std::cout << Colors::BOLD << Colors::RED
-            << "\n-------------------------------PARSED-AST--------------------"
-               "------------------\n"
-            << Colors::RESET << std::endl;
+//   // --- Lexical Analysis ---
+//   Lexer lexer(src);
+//   auto program = lexer.lexer();
 
-  // --- Parsing ---
-  Parser parser(program, "MYMODULE", diag);
-  auto astNodes = parser.Parse();
+//   std::cout << "Tokens:\n";
+//   int count = 0;
+//   for (const auto &stmt : program) {
+//     std::cout << tokenName(stmt.type) << ":'" << stmt.value << "'  ";
+//     count++;
+//     if (count % 5 == 0) // 5 tokens per line
+//       std::cout << "\n";
+//   }
+//   if (count % 5 != 0)
+//     std::cout << "\n"; // print final newline if needed
 
-  // std::cout << "AST Nodes:\n";
-  // for (auto &v : astNodes) {
-  //   std::cout << v->repr() << std::endl;
-  // }
+//   std::cout << Colors::BOLD << Colors::RED
+//             << "\n-------------------------------PARSED-AST--------------------"
+//                "------------------\n"
+//             << Colors::RESET << std::endl;
 
-  // --- Code Generation ---
-  auto &cc = parser.getCodegenContext();
-  for (auto &v : astNodes) {
-    try {
-      v->codegen(cc);
-    } catch (const std::exception &e) {
-      std::cerr << "Codegen error: " << e.what() << std::endl;
-    }
-  }
+//   // --- Parsing ---
+//   Parser parser(program, "MYMODULE", diag);
+//   auto astNodes = parser.Parse();
 
-  std::cout << Colors::BOLD << Colors::RED
-            << "\n-------------------------------LLVM_IR-----------------------"
-               "---------------\n"
-            << Colors::RESET << std::endl;
-  printIRWithLineNumbers(cc.Module.get());
+//   // std::cout << "AST Nodes:\n";
+//   // for (auto &v : astNodes) {
+//   //   std::cout << v->repr() << std::endl;
+//   // }
 
-  std::cout << Colors::BOLD << Colors::RED
-            << "\n-------------------------------COMPILED_OUTPUT---------------"
-               "-----------------------\n"
-            << Colors::RESET << std::endl;
+//   // --- Code Generation ---
+//   auto &cc = parser.getCodegenContext();
+//   for (auto &v : astNodes) {
+//     try {
+//       v->codegen(cc);
+//     } catch (const std::exception &e) {
+//       std::cerr << "Codegen error: " << e.what() << std::endl;
+//     }
+//   }
 
-  saveIRAndCompile(cc.Module.get(), "output");
+//   std::cout << Colors::BOLD << Colors::RED
+//             << "\n-------------------------------LLVM_IR-----------------------"
+//                "---------------\n"
+//             << Colors::RESET << std::endl;
+//   printIRWithLineNumbers(cc.Module.get());
 
-  return 0;
-}
+//   std::cout << Colors::BOLD << Colors::RED
+//             << "\n-------------------------------COMPILED_OUTPUT---------------"
+//                "-----------------------\n"
+//             << Colors::RESET << std::endl;
+
+//   saveIRAndCompile(cc.Module.get(), "output");
+
+//   return 0;
+// }
