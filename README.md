@@ -2,7 +2,7 @@ GigaLang
 
 GigaLang is still in development and is being written in C++ with an LLVM backend.
 
-I would probably accept pull requests, but don’t get your hopes too high—you might not be able to read the code yet.
+I would probably accept pull requests, but don’t get your hopes too high—you might not even be able to read the code yet.
 
 Big compiler developers, please don’t yell at me. I’m still a small compiler developer.
 
