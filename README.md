@@ -8,6 +8,7 @@ Big compiler developers, please don’t yell at me. I’m still a small compiler
 
 My dream is to make this compiler self-hosted. I know it’s a big dream, but who cares—you’re just dreaming too.
 
+ebnf ```
 Program Structure
 program         ::= header_section? { statement ";" }
 
@@ -79,3 +80,4 @@ string_literal  ::= '"' { any_character } '"'
 letter          ::= "a".."z" | "A".."Z"
 digit           ::= "0".."9"
 any_character   ::= ? any valid character ?
+```
