@@ -136,10 +136,10 @@ struct VariableDeclareNode : ast {
 };
 
 struct AssignmentNode : ast {
-  std::string name;
-  std::unique_ptr<ast> val;
-  AssignmentNode(const std::string &n, std::unique_ptr<ast> v)
-      : name(n), val(std::move(v)) {}
+  std::unique_ptr<ast> lhs;
+  std::unique_ptr<ast> rhs;
+  AssignmentNode(std::unique_ptr<ast> n, std::unique_ptr<ast> v)
+      : lhs(std::move(n)), rhs(std::move(v)) {}
   std::string repr() override;
   llvm::Value *codegen(CodegenContext &cc) override;
 };

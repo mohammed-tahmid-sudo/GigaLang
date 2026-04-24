@@ -29,7 +29,8 @@ std::string VariableDeclareNode::repr() {
 }
 
 std::string AssignmentNode::repr() {
-  return "AssignmentNode(name=" + name + ", NewValue=" + val->repr() + ")";
+  // return "AssignmentNode(name=" + name + ", NewValue=" + val->repr() + ")";
+  return "AssignmentNode";
 }
 
 std::string CompoundNode::repr() {

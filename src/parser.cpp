@@ -1,11 +1,11 @@
 #include "ast.h"
-#include <iomanip>
 #include "lexer.h"
 #include <Diagnosis.h>
 #include <cctype>
 #include <colors.h>
 #include <cstdio>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <llvm-18/llvm/ADT/STLExtras.h>
 #include <llvm-18/llvm/IR/DerivedTypes.h>
@@ -167,15 +167,16 @@ std::unique_ptr<ast> Parser::ParseFactor() {
 
     Token name = Peek();
     Consume();
-    if (Peek().type == EQ) {
-      Consume();
-      auto val = ParseExpression();
+    // if (Peek().type == EQ) {
+    //   Consume();
+    //   auto val = ParseExpression();
 
-      // kxpect(SEMICOLON);
+    //   // kxpect(SEMICOLON);
 
-      return std::make_unique<AssignmentNode>(name.value, std::move(val));
+    //   return std::make_unique<AssignmentNode>(name.value, std::move(val));
 
-    } else if (Peek().type == LPAREN) {
+    // } else
+    if (Peek().type == LPAREN) {
 
       Consume();
       std::vector<std::unique_ptr<ast>> args;
@@ -338,8 +339,18 @@ std::unique_ptr<ast> Parser::ParseComparison() {
   return left;
 }
 
-std::unique_ptr<ast> Parser::ParseExpression() {
+std::unique_ptr<ast> Parser::ParseAssignment() {
   std::unique_ptr<ast> left = ParseComparison();
+  if (Peek().type == EQ) {
+    Consume();
+    auto right = ParseExpression();
+    left = std::make_unique<AssignmentNode>(std::move(left), std::move(right));
+  }
+  return left;
+}
+
+std::unique_ptr<ast> Parser::ParseExpression() {
+  std::unique_ptr<ast> left = ParseAssignment();
   while (Peek().type == TokenType::AND) {
     TokenType type = Peek().type;
     Consume();
@@ -543,34 +554,6 @@ std::unique_ptr<ForNode> Parser::ParseFor() {
                                    std::move(incremnt), std::move(body));
 }
 
-std::unique_ptr<ast> Parser::ParseAssignment() {
-  Token name;
-  if (Peek().type == IDENTIFIER &&
-      (PeekNext().type == EQ || PeekNext().type == LBRACKET)) {
-    name = Expect(IDENTIFIER);
-  }
-  if (Peek().type == EQ) {
-    Consume();
-    auto val = ParseExpression();
-
-    Expect(SEMICOLON);
-
-    return std::make_unique<AssignmentNode>(name.value, std::move(val));
-  } else if (Peek().type == LBRACKET) {
-    Consume();
-    auto locaiton = ParseExpression();
-    Expect(RBRACKET);
-
-    Expect(EQ);
-    auto val = ParseExpression();
-    // Expect(SEMICOLON);
-
-    return std::make_unique<ArrayAssignNode>(name.value, std::move(locaiton),
-                                             std::move(val));
-  }
-  return nullptr;
-}
-
 std::unique_ptr<StructCreateNode> Parser::ParseStruct() {
   Expect(STRUCT);
   Token name = Expect(IDENTIFIER);
@@ -618,12 +601,6 @@ std::unique_ptr<ast> Parser::ParseStatement() {
   } else if (Peek().type == CONTINUE) {
     return std::make_unique<ContinueNode>();
     Consume();
-  } else if (Peek().type == IDENTIFIER) {
-    if (auto v = ParseAssignment()) {
-      return v;
-    } else {
-      return ParseExpression();
-    }
   } else {
     if (auto v = ParseExpression()) {
       // Expect(SEMICOLON);
@@ -719,136 +696,21 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
 // int main() {
 //   // --- Source Code to Compile ---
 //   std::string src = R"(
-
-// func to_lower(c:Char*) -> Void {
-//     let i:Integer = 0;
-//     while (*c[i] != '\0') {
-//         if *c[i] >= 'A' && *c[i] <= 'Z' {
-//             *c[i] = (Char)(*c[i] + ('a' - 'A'));
-//         }
-//         i = i + 1;
-//     }
-// }
-
-// func string_concat(a:Char*, b:Char*) -> Void {
-//     let i:Integer = 0;
-//     while (*a[i] != 0) { i = i + 1; }  // find end of a
-//     let j:Integer = 0;
-//     while (*b[j] != 0) {               // walk b
-//         *a[i + j] = *b[j];            // append b onto end of a
-//         j = j + 1;
-//     }
-//     *a[i + j] = 0;
-// }
-
-// func itoa(n:Integer, str:Char*) -> Integer  {
-//     let i:Integer = 0;
-//     let isNegetive:Boolean = false;
-
-//     if n == 0 {
-//         *str[i] = '0';        ///////////////////////
-//         i = i + 1;
-//         *str[i] = '\0';       ///////////////////////
-//         return i;
-//     }
-
-//     if n < 0 {
-//         isNegetive = true;
-//         n = n - n * 2;
-//     }
-
-//     while (n != 0) {
-//         *str[i] = (Char)(n - (n / 10) * 10 + 48);   ///////////////////////
-//         i = i + 1;
-//         n = n / 10;
-//     }
-
-//     if isNegetive {
-//         *str[i] = '-';        ///////////////////////
-//         i = i + 1;
-//     }
-
-//     *str[i] = '\0';           ///////////////////////
-
-//     let j:Integer = 0;
-//     let k:Integer = i - 1;
-
-//     while (j < k) {
-//         let tmp:Char = *str[j] ;   ///////////////////////
-//         *str[j] = *str[k];     ///////////////////////
-//         *str[k] = tmp;            ///////////////////////
-
-//         j = j + 1;
-//         k = k - 1;
-//     }
-
-//   return i;
-// }
-
-
-// func printf(str: Char*, vals: Char*) -> Void {
+// func strlen(str: Char* ) -> Integer {
 // 	let i:Integer = 0;
-// 	let j:Integer = 0;
-// 	while (*str[i] != '\0') {
-// 		if *str[i] == '%' {
-// 			i = i + 1;
-
-// 			if *str[i] == 's' {
-// 				// let cptr:Char = *vals[j];
-// 				// @Syscall(1, 1, &cptr, 1, 0, 0);
-// 				@Syscall(1, 1, *vals + j, 1, 0, 0);
-
-// 				j = j + 1;
-// 				i = i + 1;
-// 			} else if *str[i] =='d' {
-// 				let val:Integer = (Integer)*vals[j];
-// 				let cptr:Char[32];
-
-// 				let len:Integer = itoa(val, &cptr);
-
-// 				@Syscall(1, 1, &cptr, len, 0, 0);
-// 				j = j + 1;
-// 				i = i + 1;
-// 			}
-// 		}
-// 		let val:Char = *str[i];
-// 		@Syscall(1, 1, &val , 1, 0, 0);
-
-// 		i = i + 1;
-// 	}
+// 	while (*str[i] != '\0') { i = i + 1; }
+// 	return i;
 // }
-
-// func to_upper(c:Char*) -> Void {
-//     let i:Integer = 0;
-//     while (*c[i] != '\0') {
-//         if *c[i] >= 'a' && *c[i] <= 'z' {
-//             *c[i] = (Char)(*c[i] - ('a' - 'A'));
-//         }
-// 		if *c[i] == '0' {
-// 			break;
-// 		}
-//         i = i + 1;
-//     }
-
-// }
-
-// struct name [
-// 	b:Char, 
-// 	k:Integer
-// ]; 
 
 // func main() -> Integer {
 
-// 	let something:name = ['a'];
-    
-//     let num:Integer = 42;
-//     let numPtr: Char* = (Char*)&num;     // cast address of num to Char*
+// 	let x: Integer = 10;
+// let y: Integer = 20;
+// let sum: Integer = x + y;
 
-//     printf("Hello %d\n", numPtr);        // added \n at the end
-
-
-//     return 0;
+// 	return 0 ;
 // }
+
 // )";
 
 //   std::vector<std::string> sourceLines;

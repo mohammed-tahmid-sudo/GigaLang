@@ -26,6 +26,7 @@ public:
   std::unique_ptr<ast> ParseAddSub();
   std::unique_ptr<ast> ParseComparison();
   std::unique_ptr<ast> ParseTerm();
+  std::unique_ptr<ast> ParseAssignment();
 
   std::unique_ptr<ast> ParseExpression();
 
@@ -37,7 +38,6 @@ public:
   std::unique_ptr<WhileNode> ParseWhile();
   std::unique_ptr<ForNode> ParseFor();
   std::unique_ptr<StructCreateNode> ParseStruct();
-  std::unique_ptr<ast> ParseAssignment();
 
   std::unique_ptr<ast> ParseStatement();
 

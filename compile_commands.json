@@ -1,38 +1,44 @@
 [
 {
-  "directory": "/home/tahmid/BASIQ/build",
-  "command": "/usr/bin/c++  -I/home/tahmid/BASIQ/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/ast.cpp.o -c /home/tahmid/BASIQ/src/ast.cpp",
-  "file": "/home/tahmid/BASIQ/src/ast.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++  -I/home/tahmid/GigaLang/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/Diagnogsis.cpp.o -c /home/tahmid/GigaLang/src/Diagnogsis.cpp",
+  "file": "/home/tahmid/GigaLang/src/Diagnogsis.cpp",
+  "output": "CMakeFiles/BASIQ.dir/src/Diagnogsis.cpp.o"
+},
+{
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++  -I/home/tahmid/GigaLang/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/ast.cpp.o -c /home/tahmid/GigaLang/src/ast.cpp",
+  "file": "/home/tahmid/GigaLang/src/ast.cpp",
   "output": "CMakeFiles/BASIQ.dir/src/ast.cpp.o"
 },
 {
-  "directory": "/home/tahmid/BASIQ/build",
-  "command": "/usr/bin/c++  -I/home/tahmid/BASIQ/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/codegen.cpp.o -c /home/tahmid/BASIQ/src/codegen.cpp",
-  "file": "/home/tahmid/BASIQ/src/codegen.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++  -I/home/tahmid/GigaLang/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/codegen.cpp.o -c /home/tahmid/GigaLang/src/codegen.cpp",
+  "file": "/home/tahmid/GigaLang/src/codegen.cpp",
   "output": "CMakeFiles/BASIQ.dir/src/codegen.cpp.o"
 },
 {
-  "directory": "/home/tahmid/BASIQ/build",
-  "command": "/usr/bin/c++  -I/home/tahmid/BASIQ/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/lexer.cpp.o -c /home/tahmid/BASIQ/src/lexer.cpp",
-  "file": "/home/tahmid/BASIQ/src/lexer.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++  -I/home/tahmid/GigaLang/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/lexer.cpp.o -c /home/tahmid/GigaLang/src/lexer.cpp",
+  "file": "/home/tahmid/GigaLang/src/lexer.cpp",
   "output": "CMakeFiles/BASIQ.dir/src/lexer.cpp.o"
 },
 {
-  "directory": "/home/tahmid/BASIQ/build",
-  "command": "/usr/bin/c++  -I/home/tahmid/BASIQ/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/main.cpp.o -c /home/tahmid/BASIQ/src/main.cpp",
-  "file": "/home/tahmid/BASIQ/src/main.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++  -I/home/tahmid/GigaLang/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/main.cpp.o -c /home/tahmid/GigaLang/src/main.cpp",
+  "file": "/home/tahmid/GigaLang/src/main.cpp",
   "output": "CMakeFiles/BASIQ.dir/src/main.cpp.o"
 },
 {
-  "directory": "/home/tahmid/BASIQ/build",
-  "command": "/usr/bin/c++  -I/home/tahmid/BASIQ/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/parser.cpp.o -c /home/tahmid/BASIQ/src/parser.cpp",
-  "file": "/home/tahmid/BASIQ/src/parser.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++  -I/home/tahmid/GigaLang/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/parser.cpp.o -c /home/tahmid/GigaLang/src/parser.cpp",
+  "file": "/home/tahmid/GigaLang/src/parser.cpp",
   "output": "CMakeFiles/BASIQ.dir/src/parser.cpp.o"
 },
 {
-  "directory": "/home/tahmid/BASIQ/build",
-  "command": "/usr/bin/c++  -I/home/tahmid/BASIQ/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/utils.cpp.o -c /home/tahmid/BASIQ/src/utils.cpp",
-  "file": "/home/tahmid/BASIQ/src/utils.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++  -I/home/tahmid/GigaLang/include -I/usr/lib/llvm-18/include  -fexceptions -g -std=gnu++17   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/usr/lib/llvm-18/include -std=c++17 -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fexceptions -o CMakeFiles/BASIQ.dir/src/utils.cpp.o -c /home/tahmid/GigaLang/src/utils.cpp",
+  "file": "/home/tahmid/GigaLang/src/utils.cpp",
   "output": "CMakeFiles/BASIQ.dir/src/utils.cpp.o"
 }
 ]

@@ -158,20 +158,30 @@ llvm::Value *VariableDeclareNode::codegen(CodegenContext &cc) {
 }
 
 llvm::Value *AssignmentNode::codegen(CodegenContext &cc) {
-  llvm::Value *var = cc.lookup(name);
-  if (!var) {
-    llvm::errs() << "Error: variable '" << name << "' not declared!\n";
-    return nullptr; // prevents cast crash
+  llvm::Value *address = nullptr;
+
+  if (auto *varRef = dynamic_cast<VariableReferenceNode *>(lhs.get())) {
+    address = cc.lookup(varRef->Name);
+    if (!address) {
+      llvm::errs() << "Error: variable '" << varRef->Name
+                   << "' not declared!\n";
+      return nullptr;
+    }
+  } else {
+    address = lhs->codegen(cc);
+    if (!address) {
+      llvm::errs() << "Error: invalid LHS in assignment!\n";
+      return nullptr;
+    }
   }
 
-  llvm::Value *valueVal = val->codegen(cc);
+  llvm::Value *valueVal = rhs->codegen(cc);
   if (!valueVal) {
-    llvm::errs() << "Error IN ASSINGMENT NODE: RHS expression returned null!\n";
+    llvm::errs() << "Error IN ASSIGNMENT NODE: RHS expression returned null!\n";
     return nullptr;
   }
 
-  // Store the value into the existing alloca
-  return cc.Builder->CreateStore(valueVal, var);
+  return cc.Builder->CreateStore(valueVal, address);
 }
 
 llvm::Value *ReturnNode::codegen(CodegenContext &cc) {
@@ -271,53 +281,11 @@ llvm::Value *FunctionNode::codegen(CodegenContext &cc) {
 }
 
 llvm::Value *VariableReferenceNode::codegen(CodegenContext &cc) {
-  llvm::Value *var = cc.lookup(Name);
+  llvm::Value *ptr = cc.lookup(Name);   // pointer
+  llvm::Type *ty = cc.lookupType(Name); // value type
 
-  if (!var->getType()->isPointerTy())
-    return var;
-
-  llvm::errs() << "Var type: ";
-  var->getType()->print(llvm::errs());
-  llvm::errs() << "\n";
-
-  llvm::Type *elemTy = nullptr;
-
-  if (auto *AI = llvm::dyn_cast<llvm::AllocaInst>(var))
-    elemTy = AI->getAllocatedType();
-  else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(var))
-    elemTy = GV->getValueType();
-  else if (auto *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(var))
-    elemTy = GEP->getResultElementType();
-  else
-    throw std::runtime_error("Cannot determine element type of variable: " +
-                             Name);
-
-  return cc.Builder->CreateLoad(elemTy, var, Name);
+  return cc.Builder->CreateLoad(ty, ptr, Name);
 }
-
-// llvm::Value *VariableReferenceNode::codegen(CodegenContext &cc) {
-//   llvm::Value *var = cc.lookup(Name);
-//   if (!var)
-//     throw std::runtime_error("Unknown variable: " + Name);
-
-//   llvm::errs() << "Variable: " << Name << "\n";
-//   llvm::errs() << "LLVM type: ";
-//   var->getType()->print(llvm::errs());
-//   llvm::errs() << "\n";
-
-//   llvm::errs() << "Full value: ";
-//   var->print(llvm::errs());
-//   llvm::errs() << "\n";
-
-//   llvm::Type *type;
-//   if (auto *AI = llvm::dyn_cast<llvm::AllocaInst>(var)) {
-//     type = AI->getAllocatedType(); // safe in LLVM 18+
-//   } else {
-//     throw std::runtime_error("Variable is not an alloca: " + Name);
-//   }
-
-//   return cc.Builder->CreateLoad(type, var, Name);
-// }
 
 llvm::Value *WhileNode::codegen(CodegenContext &cc) {
   llvm::Function *F = cc.Builder->GetInsertBlock()->getParent();
