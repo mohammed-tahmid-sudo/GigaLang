@@ -12,6 +12,11 @@
 #include <utility>
 #include <vector>
 
+struct CodegenResult {
+  llvm::Value *value;
+  llvm::Type *type;
+};
+
 struct VWT {
   llvm::Value *val;
   llvm::Type *type;
@@ -81,7 +86,7 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc);
 struct ast {
   virtual ~ast() = default;
   virtual std::string repr() = 0;
-  virtual llvm::Value *codegen(CodegenContext &cc) = 0;
+  virtual CodegenResult codegen(CodegenContext &cc) = 0;
 };
 
 struct CharNode : ast {
@@ -89,35 +94,35 @@ struct CharNode : ast {
 
   CharNode(char value) : val(value) {}
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct IntegerNode : ast {
   int val;
   IntegerNode(const int v) : val(v) {}
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct FloatNode : ast {
   float val;
   FloatNode(float v) : val(v) {}
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct BooleanNode : ast {
   bool val;
   BooleanNode(bool v) : val(v) {}
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 // struct StringNode : ast {
 //   std::string val;
 //   StringNode(const std::string &v) : val(v) {}
 //   std::string repr() override;
-//   llvm::Value *codegen(CodegenContext &cc) override;
+//   CodegenResult codegen(CodegenContext &cc) override;
 // };
 
 struct VariableDeclareNode : ast {
@@ -132,7 +137,7 @@ struct VariableDeclareNode : ast {
 
   std::string repr() override;
 
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct AssignmentNode : ast {
@@ -141,20 +146,20 @@ struct AssignmentNode : ast {
   AssignmentNode(std::unique_ptr<ast> n, std::unique_ptr<ast> v)
       : lhs(std::move(n)), rhs(std::move(v)) {}
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct ReturnNode : ast {
   std::unique_ptr<ast> expr;
   ReturnNode(std::unique_ptr<ast> exp) : expr(std::move(exp)) {}
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 struct CompoundNode : ast {
   std::vector<std::unique_ptr<ast>> blocks;
   CompoundNode(std::vector<std::unique_ptr<ast>> b) : blocks(std::move(b)) {}
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct FunctionNode : ast {
@@ -171,7 +176,7 @@ struct FunctionNode : ast {
         isVaridic(varidic) {}
 
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct VariableReferenceNode : ast {
@@ -179,7 +184,7 @@ struct VariableReferenceNode : ast {
 
   VariableReferenceNode(const std::string &s) : Name(s) {}
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct WhileNode : ast {
@@ -189,7 +194,7 @@ struct WhileNode : ast {
   WhileNode(std::unique_ptr<ast> condtn, std::unique_ptr<ast> bdy)
       : condition(std::move(condtn)), body(std::move(bdy)) {}
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct IfNode : ast {
@@ -203,7 +208,7 @@ struct IfNode : ast {
         elseBlock(std::move(elseB)) {}
 
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct BinaryOperationNode : ast {
@@ -215,17 +220,17 @@ struct BinaryOperationNode : ast {
       : Type(tp), Left(std::move(LHS)), Right(std::move(RHS)) {}
 
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct BreakNode : ast {
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct ContinueNode : ast {
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 struct CallNode : ast {
   std::string name;
@@ -234,7 +239,7 @@ struct CallNode : ast {
   CallNode(const std::string &s, std::vector<std::unique_ptr<ast>> arg)
       : name(s), args(std::move(arg)) {}
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct ForNode : ast {
@@ -249,7 +254,7 @@ struct ForNode : ast {
         increment(std::move(inc)), body(std::move(body)) {}
 
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct ArrayLiteralNode : ast {
@@ -261,7 +266,7 @@ struct ArrayLiteralNode : ast {
       : ElementType(elemType), Elements(std::move(elements)) {}
 
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct ArrayAccessNode : ast {
@@ -272,7 +277,7 @@ struct ArrayAccessNode : ast {
       : arrayName(name), indexExpr(std::move(index)) {}
 
   std::string repr() override;
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct ArrayAssignNode : ast {
@@ -286,7 +291,7 @@ struct ArrayAssignNode : ast {
 
   std::string repr() override;
 
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct SizeOfNode : ast {
@@ -295,7 +300,7 @@ struct SizeOfNode : ast {
   SizeOfNode(std::unique_ptr<ast> valval) : val(std::move(valval)) {}
   std::string repr() override;
 
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct SyscallNode : ast {
@@ -305,7 +310,7 @@ struct SyscallNode : ast {
       : name(syscall_name), args(std::move(syscall_args)) {}
   std::string repr() override { return "SYSCALLNODE"; }
 
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct PointerReferenceNode : ast {
@@ -314,7 +319,7 @@ struct PointerReferenceNode : ast {
 
   std::string repr() override;
 
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct PointerDeReferenceAssingNode : ast {
@@ -328,7 +333,7 @@ struct PointerDeReferenceAssingNode : ast {
 
   std::string repr() override;
 
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct DeReferenceNode : ast {
@@ -339,7 +344,7 @@ struct DeReferenceNode : ast {
       : name(n), index(std::move(idx)) {}
   std::string repr() override { return "PointerDeReferenceNode"; }
 
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct CastNode : ast {
@@ -350,7 +355,7 @@ struct CastNode : ast {
       : Value(std::move(V)), targetType(type) {}
   std::string repr() override { return "CastNode"; }
 
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };
 
 struct StructCreateNode : ast {
@@ -361,5 +366,5 @@ struct StructCreateNode : ast {
       : name(s), types(std::move(tps)) {}
   std::string repr() override { return "CastNode"; }
 
-  llvm::Value *codegen(CodegenContext &cc) override;
+  CodegenResult codegen(CodegenContext &cc) override;
 };

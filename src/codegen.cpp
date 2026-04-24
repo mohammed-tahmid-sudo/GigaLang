@@ -80,38 +80,34 @@ llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
   return GetTypeNonVoid(type, cc);
 }
 
-llvm::Value *CharNode::codegen(CodegenContext &cc) {
-  return llvm::ConstantInt::get(llvm::Type::getInt8Ty(*cc.TheContext), val,
-                                false);
+CodegenResult CharNode::codegen(CodegenContext &cc) {
+  return {
+      llvm::ConstantInt::get(llvm::Type::getInt8Ty(*cc.TheContext), val, false),
+      llvm::Type::getInt8Ty(*cc.TheContext)};
 }
 
-llvm::Value *IntegerNode::codegen(CodegenContext &cc) {
-  return llvm::ConstantInt::get(llvm::Type::getInt32Ty(*cc.TheContext), val,
-                                true);
+CodegenResult IntegerNode::codegen(CodegenContext &cc) {
+  return {
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*cc.TheContext), val, true),
+      llvm::Type::getInt32Ty(*cc.TheContext)};
 }
 
-llvm::Value *FloatNode::codegen(CodegenContext &cc) {
+CodegenResult FloatNode::codegen(CodegenContext &cc) {
 
-  return llvm::ConstantFP::get(llvm::Type::getFloatTy(*cc.TheContext), val);
+  return {
+      llvm::ConstantInt::get(llvm::Type::getFloatTy(*cc.TheContext), val, true),
+      llvm::Type::getFloatTy(*cc.TheContext)};
 }
 
-llvm::Value *BooleanNode::codegen(CodegenContext &cc) {
-  return llvm::ConstantInt::get(llvm::Type::getInt1Ty(*cc.TheContext), val,
-                                true);
+CodegenResult BooleanNode::codegen(CodegenContext &cc) {
+  return {
+      llvm::ConstantInt::get(llvm::Type::getInt1Ty(*cc.TheContext), val, true),
+      llvm::Type::getInt1Ty(*cc.TheContext)};
 }
 
-// llvm::Value *StringNode::codegen(CodegenContext &cc) {
-//   return llvm::ConstantDataArray::getString(*cc.TheContext, val,
-//                                             true); // true = add null
-//                                             terminator
-// }
-
-llvm::Value *VariableDeclareNode::codegen(CodegenContext &cc) {
+CodegenResult VariableDeclareNode::codegen(CodegenContext &cc) {
   llvm::Type *elementType = GetTypeNonVoid(Type, cc);
   llvm::AllocaInst *alloca = nullptr;
-
-  if (!cc.Builder->GetInsertBlock())
-    std::cout << "NO INSERT BLOCK\n";
 
   if (arraySize.has_value() && *arraySize > 1) {
     llvm::ArrayType *arrayType = llvm::ArrayType::get(elementType, *arraySize);
@@ -121,11 +117,13 @@ llvm::Value *VariableDeclareNode::codegen(CodegenContext &cc) {
       ArrayLiteralNode *arrayNode = dynamic_cast<ArrayLiteralNode *>(val.get());
       if (arrayNode) {
         for (size_t i = 0; i < arrayNode->Elements.size(); ++i) {
-          llvm::Value *elemVal = arrayNode->Elements[i]->codegen(cc);
+          CodegenResult elemRes = arrayNode->Elements[i]->codegen(cc);
+
           llvm::Value *gep = cc.Builder->CreateGEP(
               arrayType, alloca,
               {cc.Builder->getInt32(0), cc.Builder->getInt32(i)}, "elemptr");
-          cc.Builder->CreateStore(elemVal, gep);
+
+          cc.Builder->CreateStore(elemRes.value, gep);
         }
       }
     } else {
@@ -133,68 +131,70 @@ llvm::Value *VariableDeclareNode::codegen(CodegenContext &cc) {
         llvm::Value *gep = cc.Builder->CreateGEP(
             arrayType, alloca,
             {cc.Builder->getInt32(0), cc.Builder->getInt32(i)});
-        llvm::Value *zero = llvm::ConstantInt::get(elementType, 0);
+        llvm::Value *zero = llvm::Constant::getNullValue(elementType);
         cc.Builder->CreateStore(zero, gep);
       }
     }
-
   } else {
-    // Scalar or single-element array treated as scalar
     alloca = cc.Builder->CreateAlloca(elementType, nullptr, name);
-    llvm::Value *initVal =
-        val ? val->codegen(cc) : llvm::Constant::getNullValue(elementType);
+
+    llvm::Value *initVal;
+    if (val) {
+      initVal = val->codegen(cc).value;
+    } else {
+      initVal = llvm::Constant::getNullValue(elementType);
+    }
+
     cc.Builder->CreateStore(initVal, alloca);
   }
 
-  llvm::Type *pointeeType = nullptr;
-  if (elementType->isPointerTy()) {
-    Token baseTypeToken;
-    baseTypeToken.value =
-        Type.value.substr(0, Type.value.size() - 7); // strip "POINTER"
-    pointeeType = GetTypeNonVoid(baseTypeToken, cc);
-  }
-  cc.addVariable(name, alloca, elementType, pointeeType);
-  return alloca;
+  cc.addVariable(name, alloca, alloca->getType(), elementType);
+
+  return {alloca, elementType};
 }
 
-llvm::Value *AssignmentNode::codegen(CodegenContext &cc) {
-  llvm::Value *address = nullptr;
-
-  if (auto *varRef = dynamic_cast<VariableReferenceNode *>(lhs.get())) {
-    address = cc.lookup(varRef->Name);
-    if (!address) {
-      llvm::errs() << "Error: variable '" << varRef->Name
-                   << "' not declared!\n";
-      return nullptr;
-    }
-  } else {
-    address = lhs->codegen(cc);
-    if (!address) {
-      llvm::errs() << "Error: invalid LHS in assignment!\n";
-      return nullptr;
-    }
+CodegenResult AssignmentNode::codegen(CodegenContext &cc) {
+  // 1. Get the LHS result (the "where").
+  // This will return the address of a variable OR a field.
+  CodegenResult lhsRes = lhs->codegen(cc);
+  if (!lhsRes.value) {
+    llvm::errs() << "Error: invalid LHS in assignment!\n";
+    return {nullptr, nullptr};
   }
 
-  llvm::Value *valueVal = rhs->codegen(cc);
-  if (!valueVal) {
-    llvm::errs() << "Error IN ASSIGNMENT NODE: RHS expression returned null!\n";
-    return nullptr;
+  // 2. Get the RHS result (the "what").
+  CodegenResult rhsRes = rhs->codegen(cc);
+  if (!rhsRes.value) {
+    llvm::errs() << "Error in assignment: RHS expression returned null!\n";
+    return {nullptr, nullptr};
   }
+  cc.Builder->CreateStore(rhsRes.value, lhsRes.value);
 
-  return cc.Builder->CreateStore(valueVal, address);
+  return rhsRes;
 }
 
-llvm::Value *ReturnNode::codegen(CodegenContext &cc) {
+CodegenResult ReturnNode::codegen(CodegenContext &cc) {
   if (expr) {
-    llvm::Value *retVal = expr->codegen(cc);
-    return cc.Builder->CreateRet(retVal);
+    // 1. Get the address/value and the type
+    CodegenResult retRes = expr->codegen(cc);
+
+    if (!retRes.value)
+      return {nullptr, nullptr};
+
+    // 2. Emit the LLVM return instruction using .val
+    llvm::Value *retInst = cc.Builder->CreateRet(retRes.value);
+
+    // 3. Return the result of the expression
+    return {retInst, retRes.type};
   } else {
-    return cc.Builder->CreateRetVoid();
+    // Void return
+    llvm::Value *retInst = cc.Builder->CreateRetVoid();
+    return {retInst, llvm::Type::getVoidTy(*cc.TheContext)};
   }
 }
 
-llvm::Value *CompoundNode::codegen(CodegenContext &cc) {
-  llvm::Value *last = nullptr;
+CodegenResult CompoundNode::codegen(CodegenContext &cc) {
+  CodegenResult last = {nullptr};
 
   cc.pushScope();
 
@@ -215,7 +215,7 @@ llvm::Value *CompoundNode::codegen(CodegenContext &cc) {
   return last;
 }
 
-llvm::Value *FunctionNode::codegen(CodegenContext &cc) {
+CodegenResult FunctionNode::codegen(CodegenContext &cc) {
   std::vector<llvm::Type *> argTypes;
   for (auto &a : args)
     argTypes.push_back(std::get<1>(a)); // was a.second
@@ -259,35 +259,35 @@ llvm::Value *FunctionNode::codegen(CodegenContext &cc) {
     cc.addVariable(argName, alloca, argType, pointeeType);
   }
 
-  llvm::Value *retVal = content->codegen(cc);
+  CodegenResult retVal = content->codegen(cc);
 
   llvm::BasicBlock *currentBB = cc.Builder->GetInsertBlock();
   if (!currentBB->getTerminator()) {
     if (retTy->isVoidTy()) {
       cc.Builder->CreateRetVoid();
     } else {
-      if (!retVal) {
+      if (!retVal.value) {
         Fn->eraseFromParent();
         cc.popScope();
-        return nullptr;
+        return {nullptr, nullptr};
       }
-      cc.Builder->CreateRet(retVal);
+      cc.Builder->CreateRet(retVal.value);
     }
   }
 
   llvm::verifyFunction(*Fn);
   cc.popScope();
-  return Fn;
+  return {Fn, retTy};
 }
 
-llvm::Value *VariableReferenceNode::codegen(CodegenContext &cc) {
+CodegenResult VariableReferenceNode::codegen(CodegenContext &cc) {
   llvm::Value *ptr = cc.lookup(Name);   // pointer
   llvm::Type *ty = cc.lookupType(Name); // value type
 
-  return cc.Builder->CreateLoad(ty, ptr, Name);
+  return {cc.Builder->CreateLoad(ty, ptr, Name), cc.lookupType(Name)};
 }
 
-llvm::Value *WhileNode::codegen(CodegenContext &cc) {
+CodegenResult WhileNode::codegen(CodegenContext &cc) {
   llvm::Function *F = cc.Builder->GetInsertBlock()->getParent();
   llvm::LLVMContext &Ctx = *cc.TheContext;
 
@@ -298,16 +298,16 @@ llvm::Value *WhileNode::codegen(CodegenContext &cc) {
   cc.Builder->CreateBr(condBB);
 
   cc.Builder->SetInsertPoint(condBB);
-  llvm::Value *condVal = condition->codegen(cc);
-  if (!condVal)
-    return nullptr;
+  CodegenResult condVal = condition->codegen(cc);
+  if (!condVal.value)
+    return {nullptr, nullptr};
 
-  if (!condVal->getType()->isIntegerTy(1)) {
-    condVal = cc.Builder->CreateICmpNE(
-        condVal, llvm::ConstantInt::get(condVal->getType(), 0),
+  if (!condVal.value->getType()->isIntegerTy(1)) {
+    condVal.value = cc.Builder->CreateICmpNE(
+        condVal.value, llvm::ConstantInt::get(condVal.value->getType(), 0),
         "while.cond.to.i1");
   }
-  cc.Builder->CreateCondBr(condVal, bodyBB, afterBB);
+  cc.Builder->CreateCondBr(condVal.value, bodyBB, afterBB);
   cc.Builder->SetInsertPoint(bodyBB);
 
   llvm::BasicBlock *oldBreak = cc.BreakBB;
@@ -315,10 +315,10 @@ llvm::Value *WhileNode::codegen(CodegenContext &cc) {
   cc.BreakBB = afterBB;
   cc.ContinueBB = condBB;
 
-  if (!body->codegen(cc)) {
+  if (!body->codegen(cc).value) {
     cc.BreakBB = oldBreak;
     cc.ContinueBB = oldCont;
-    return nullptr;
+    return {nullptr, nullptr};
   }
 
   cc.BreakBB = oldBreak;
@@ -329,18 +329,16 @@ llvm::Value *WhileNode::codegen(CodegenContext &cc) {
 
   cc.Builder->SetInsertPoint(afterBB);
 
-  // return llvm::Constant::getNullValue(llvm::Type::getInt32Ty(Ctx));
-  return nullptr;
+  return {nullptr, nullptr};
 }
 
-llvm::Value *IfNode::codegen(CodegenContext &cc) {
-  llvm::Value *condV = condition->codegen(cc);
-  if (!condV)
-    return nullptr;
+CodegenResult IfNode::codegen(CodegenContext &cc) {
+  CodegenResult condV = condition->codegen(cc);
+  if (!condV.value)
+    return {nullptr, nullptr};
 
-  condV = cc.Builder->CreateICmpNE(
-      condV, llvm::ConstantInt::get(condV->getType(), 0), "ifcond");
-
+  condV.value = cc.Builder->CreateICmpNE(
+      condV.value, llvm::ConstantInt::get(condV.value->getType(), 0), "ifcond");
   llvm::Function *func = cc.Builder->GetInsertBlock()->getParent();
 
   llvm::BasicBlock *thenBB =
@@ -352,11 +350,10 @@ llvm::Value *IfNode::codegen(CodegenContext &cc) {
       llvm::BasicBlock::Create(*cc.TheContext, "ifcont", func);
 
   if (elseBB)
-    cc.Builder->CreateCondBr(condV, thenBB, elseBB);
+    cc.Builder->CreateCondBr(condV.value, thenBB, elseBB);
   else
-    cc.Builder->CreateCondBr(condV, thenBB, mergeBB);
+    cc.Builder->CreateCondBr(condV.value, thenBB, mergeBB);
 
-  // --- then ---
   cc.Builder->SetInsertPoint(thenBB);
   cc.pushScope();
   thenBlock->codegen(cc);
@@ -364,7 +361,6 @@ llvm::Value *IfNode::codegen(CodegenContext &cc) {
   if (!cc.Builder->GetInsertBlock()->getTerminator()) // ← ADD THIS CHECK
     cc.Builder->CreateBr(mergeBB);
 
-  // --- else ---
   if (elseBB) {
     cc.Builder->SetInsertPoint(elseBB);
     cc.pushScope();
@@ -374,72 +370,21 @@ llvm::Value *IfNode::codegen(CodegenContext &cc) {
       cc.Builder->CreateBr(mergeBB);
   }
 
-  // --- merge ---
   cc.Builder->SetInsertPoint(mergeBB);
-  return nullptr;
+  return {nullptr, nullptr};
 }
 
-// llvm::Value *IfNode::codegen(CodegenContext &cc) {
-//   llvm::Value *condV = condition->codegen(cc);
-//   if (!condV)
-//     return nullptr;
+CodegenResult BinaryOperationNode::codegen(CodegenContext &cc) {
+  CodegenResult LHS = Left->codegen(cc);
+  CodegenResult RHS = Right->codegen(cc);
 
-//   // bool conversion
-//   condV = cc.Builder->CreateICmpNE(
-//       condV, llvm::ConstantInt::get(condV->getType(), 0), "ifcond");
-
-//   llvm::Function *func = cc.Builder->GetInsertBlock()->getParent();
-
-//   // create blocks
-//   llvm::BasicBlock *thenBB =
-//       llvm::BasicBlock::Create(*cc.TheContext, "then", func);
-//   llvm::BasicBlock *elseBB = nullptr;
-//   if (elseBlock)
-//     elseBB = llvm::BasicBlock::Create(*cc.TheContext, "else", func);
-
-//   llvm::BasicBlock *mergeBB =
-//       llvm::BasicBlock::Create(*cc.TheContext, "ifcont", func);
-
-//   // conditional branch
-//   if (elseBB)
-//     cc.Builder->CreateCondBr(condV, thenBB, elseBB);
-//   else
-//     cc.Builder->CreateCondBr(condV, thenBB, mergeBB);
-
-//   // then
-//   cc.Builder->SetInsertPoint(thenBB);
-//   cc.pushScope();
-//   thenBlock->codegen(cc);
-//   cc.popScope();
-//   cc.Builder->CreateBr(mergeBB);
-//   thenBB = cc.Builder->GetInsertBlock();
-
-//   // else (if present)
-//   if (elseBB) {
-//     cc.Builder->SetInsertPoint(elseBB);
-//     cc.pushScope();
-//     elseBlock->codegen(cc);
-//     cc.popScope();
-//     cc.Builder->CreateBr(mergeBB);
-//     elseBB = cc.Builder->GetInsertBlock();
-//   }
-
-//   // merge
-//   cc.Builder->SetInsertPoint(mergeBB);
-//   return nullptr;
-// }
-
-llvm::Value *BinaryOperationNode::codegen(CodegenContext &cc) {
-  llvm::Value *LHS = Left->codegen(cc);
-  llvm::Value *RHS = Right->codegen(cc);
-
-  if (!LHS || !RHS)
+  if (!LHS.value || !RHS.value)
     throw std::runtime_error("null operand in binary operation");
 
-  LHS->getType()->print(llvm::errs());
-  llvm::errs() << "\n";
-  RHS->getType()->print(llvm::errs());
-  llvm::errs() << "\n";
+  // LHS->getType()->print(llvm::errs());
+  // llvm::errs() << "\n";
+  // RHS->getType()->print(llvm::errs());
+  // llvm::errs() << "\n";
 
   switch (Type) {
 
@@ -449,15 +394,17 @@ llvm::Value *BinaryOperationNode::codegen(CodegenContext &cc) {
   case TokenType::SLASH: {
     // If either operand is i1, promote to i32
     auto *i32 = llvm::Type::getInt32Ty(*cc.TheContext);
-    if (LHS->getType()->isIntegerTy(1))
-      LHS = cc.Builder->CreateIntCast(LHS, i32, true);
-    if (RHS->getType()->isIntegerTy(1))
-      RHS = cc.Builder->CreateIntCast(RHS, i32, true);
+    if (LHS.value->getType()->isIntegerTy(1))
+      LHS.value = cc.Builder->CreateIntCast(LHS.value, i32, true);
+    if (RHS.value->getType()->isIntegerTy(1))
+      RHS.value = cc.Builder->CreateIntCast(RHS.value, i32, true);
 
     // If types still mismatch, cast RHS to match LHS
-    if (LHS->getType() != RHS->getType()) {
-      if (LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy()) {
-        RHS = cc.Builder->CreateIntCast(RHS, LHS->getType(), true);
+    if (LHS.value->getType() != RHS.value->getType()) {
+      if (LHS.value->getType()->isIntegerTy() &&
+          RHS.value->getType()->isIntegerTy()) {
+        RHS.value =
+            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
       } else {
         throw std::runtime_error(
             "Cannot perform arithmetic on incompatible types");
@@ -465,95 +412,123 @@ llvm::Value *BinaryOperationNode::codegen(CodegenContext &cc) {
     }
 
     if (Type == TokenType::PLUS)
-      return cc.Builder->CreateAdd(LHS, RHS, "addtmp");
+      return {cc.Builder->CreateAdd(LHS.value, RHS.value, "addtmp"),
+              cc.Builder->CreateAdd(LHS.value, RHS.value, "addtmp")->getType()};
     if (Type == TokenType::MINUS)
-      return cc.Builder->CreateSub(LHS, RHS, "subtmp");
+      return {cc.Builder->CreateSub(LHS.value, RHS.value, "subtmp"),
+              cc.Builder->CreateSub(LHS.value, RHS.value, "subtmp")->getType()};
     if (Type == TokenType::STAR)
-      return cc.Builder->CreateMul(LHS, RHS, "multmp");
+      return {cc.Builder->CreateMul(LHS.value, RHS.value, "multmp"),
+              cc.Builder->CreateMul(LHS.value, RHS.value, "multmp")->getType()};
     if (Type == TokenType::SLASH)
-      return cc.Builder->CreateSDiv(LHS, RHS, "divtmp");
+      return {
+          cc.Builder->CreateSDiv(LHS.value, RHS.value, "divtmp"),
+          cc.Builder->CreateSDiv(LHS.value, RHS.value, "divtmp")->getType()};
   }
 
   case TokenType::EQEQ: {
-    if (LHS->getType() != RHS->getType()) {
-      if (LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy()) {
-        RHS = cc.Builder->CreateIntCast(RHS, LHS->getType(), true);
+    if (LHS.value->getType() != RHS.value->getType()) {
+      if (LHS.value->getType()->isIntegerTy() &&
+          RHS.value->getType()->isIntegerTy()) {
+        RHS.value =
+            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
       } else {
         throw std::runtime_error("Cannot compare incompatible types");
       }
     }
 
-    return cc.Builder->CreateICmpEQ(LHS, RHS, "eqtmp");
+    return {cc.Builder->CreateICmpEQ(LHS.value, RHS.value, "eqtmp"),
+            cc.Builder->CreateICmpEQ(LHS.value, RHS.value, "eqtmp")->getType()};
   }
 
   case TokenType::NOTEQ: {
-    if (LHS->getType() != RHS->getType()) {
-      if (LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy()) {
-        RHS = cc.Builder->CreateIntCast(RHS, LHS->getType(), true);
+    if (LHS.value->getType() != RHS.value->getType()) {
+      if (LHS.value->getType()->isIntegerTy() &&
+          RHS.value->getType()->isIntegerTy()) {
+        RHS.value =
+            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
       } else {
         throw std::runtime_error("Cannot compare incompatible types");
       }
     }
 
-    return cc.Builder->CreateICmpNE(LHS, RHS, "netmp");
+    return {cc.Builder->CreateICmpNE(LHS.value, RHS.value, "netmp"),
+            cc.Builder->CreateICmpNE(LHS.value, RHS.value, "netmp")->getType()};
   }
   case TokenType::AND: {
     // Convert LHS to i1 if needed
-    if (!LHS->getType()->isIntegerTy(1))
-      LHS = cc.Builder->CreateICmpNE(
-          LHS, llvm::ConstantInt::get(LHS->getType(), 0), "lhsbool");
+    if (!LHS.value->getType()->isIntegerTy(1))
+      LHS.value = cc.Builder->CreateICmpNE(
+          LHS.value, llvm::ConstantInt::get(LHS.value->getType(), 0),
+          "lhsbool");
 
     // Convert RHS to i1 if needed
-    if (!RHS->getType()->isIntegerTy(1))
-      RHS = cc.Builder->CreateICmpNE(
-          RHS, llvm::ConstantInt::get(RHS->getType(), 0), "rhsbool");
+    if (!RHS.value->getType()->isIntegerTy(1))
+      RHS.value = cc.Builder->CreateICmpNE(
+          RHS.value, llvm::ConstantInt::get(RHS.value->getType(), 0),
+          "rhsbool");
 
-    return cc.Builder->CreateAnd(LHS, RHS, "andtmp");
+    return {cc.Builder->CreateAnd(LHS.value, RHS.value, "andtmp"),
+            cc.Builder->CreateAnd(LHS.value, RHS.value, "andtmp")->getType()};
   }
   case TokenType::GTE: {
-    if (LHS->getType() != RHS->getType()) {
-      if (LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy()) {
-        RHS = cc.Builder->CreateIntCast(RHS, LHS->getType(), true);
+    if (LHS.value->getType() != RHS.value->getType()) {
+      if (LHS.value->getType()->isIntegerTy() &&
+          RHS.value->getType()->isIntegerTy()) {
+        RHS.value =
+            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
       } else {
         throw std::runtime_error("Cannot compare incompatible types");
       }
     }
-    return cc.Builder->CreateICmpSGE(LHS, RHS,
-                                     "gtetmp"); // signed greater or equal
+    return {
+        cc.Builder->CreateICmpSGE(LHS.value, RHS.value, "gtetmp"),
+        cc.Builder->CreateICmpSGE(LHS.value, RHS.value, "gtetmp")->getType()};
   }
 
   case TokenType::LTE: {
-    if (LHS->getType() != RHS->getType()) {
-      if (LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy()) {
-        RHS = cc.Builder->CreateIntCast(RHS, LHS->getType(), true);
+    if (LHS.value->getType() != RHS.value->getType()) {
+      if (LHS.value->getType()->isIntegerTy() &&
+          RHS.value->getType()->isIntegerTy()) {
+        RHS.value =
+            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
       } else {
         throw std::runtime_error("Cannot compare incompatible types");
       }
     }
-    return cc.Builder->CreateICmpSLE(LHS, RHS,
-                                     "ltetmp"); // signed less or equal
+    return {
+        cc.Builder->CreateICmpSLE(LHS.value, RHS.value, "ltetmp"),
+        cc.Builder->CreateICmpSLE(LHS.value, RHS.value, "ltetmp")->getType()};
   }
 
   case TokenType::GT: {
-    if (LHS->getType() != RHS->getType()) {
-      if (LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy()) {
-        RHS = cc.Builder->CreateIntCast(RHS, LHS->getType(), true);
+    if (LHS.value->getType() != RHS.value->getType()) {
+      if (LHS.value->getType()->isIntegerTy() &&
+          RHS.value->getType()->isIntegerTy()) {
+        RHS.value =
+            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
       } else {
         throw std::runtime_error("Cannot compare incompatible types");
       }
     }
-    return cc.Builder->CreateICmpSGT(LHS, RHS, "gttmp"); // signed greater than
+    return {
+        cc.Builder->CreateICmpSGT(LHS.value, RHS.value, "gttmp"),
+        cc.Builder->CreateICmpSGT(LHS.value, RHS.value, "gttmp")->getType()};
   }
 
   case TokenType::LT: {
-    if (LHS->getType() != RHS->getType()) {
-      if (LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy()) {
-        RHS = cc.Builder->CreateIntCast(RHS, LHS->getType(), true);
+    if (LHS.value->getType() != RHS.value->getType()) {
+      if (LHS.value->getType()->isIntegerTy() &&
+          RHS.value->getType()->isIntegerTy()) {
+        RHS.value =
+            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
       } else {
         throw std::runtime_error("Cannot compare incompatible types");
       }
     }
-    return cc.Builder->CreateICmpSLT(LHS, RHS, "lttmp"); // signed less than
+    return {
+        cc.Builder->CreateICmpSLT(LHS.value, RHS.value, "lttmp"),
+        cc.Builder->CreateICmpSLT(LHS.value, RHS.value, "lttmp")->getType()};
   }
 
   default:
@@ -562,113 +537,55 @@ llvm::Value *BinaryOperationNode::codegen(CodegenContext &cc) {
   }
 }
 
-// llvm::Value *BinaryOperationNode::codegen(CodegenContext &cc) {
-//   llvm::Value *LHS = Left->codegen(cc);
-//   llvm::Value *RHS = Right->codegen(cc);
-
-//   if (!LHS || !RHS)
-//     throw std::runtime_error("null operand in binary operation");
-
-//   // force both operands to i32
-//   auto *i32 = llvm::Type::getInt32Ty(*cc.TheContext);
-
-//   if (LHS->getType()->isIntegerTy(1))
-//     LHS = cc.Builder->CreateIntCast(LHS, i32, true);
-
-//   if (RHS->getType()->isIntegerTy(1))
-//     RHS = cc.Builder->CreateIntCast(RHS, i32, true);
-
-//   switch (Type) {
-//   case TokenType::PLUS:
-//     return cc.Builder->CreateAdd(LHS, RHS, "addtmp");
-
-//   case TokenType::MINUS:
-//     return cc.Builder->CreateSub(LHS, RHS, "subtmp");
-
-//   case TokenType::STAR:
-//     return cc.Builder->CreateMul(LHS, RHS, "multmp");
-
-//   case TokenType::SLASH:
-//     return cc.Builder->CreateSDiv(LHS, RHS, "divtmp");
-
-//   case TokenType::LT: {
-//     auto *cmp = cc.Builder->CreateICmpSLT(LHS, RHS, "lttmp");
-//     return cc.Builder->CreateIntCast(cmp, i32, true);
-//   }
-
-//   case TokenType::LTE: {
-//     auto *cmp = cc.Builder->CreateICmpSLE(LHS, RHS, "letmp");
-//     return cc.Builder->CreateIntCast(cmp, i32, true);
-//   }
-
-//   case TokenType::GT: {
-//     auto *cmp = cc.Builder->CreateICmpSGT(LHS, RHS, "gttmp");
-//     return cc.Builder->CreateIntCast(cmp, i32, true);
-//   }
-
-//   case TokenType::GTE: {
-//     auto *cmp = cc.Builder->CreateICmpSGE(LHS, RHS, "getmp");
-//     return cc.Builder->CreateIntCast(cmp, i32, true);
-//   }
-
-//   case TokenType::EQEQ: {
-//     auto *cmp = cc.Builder->CreateICmpEQ(LHS, RHS, "eqtmp");
-//     return cc.Builder->CreateIntCast(cmp, i32, true);
-//   }
-
-//   case TokenType::NOTEQ: {
-//     auto *cmp = cc.Builder->CreateICmpNE(LHS, RHS, "netmp");
-//     return cc.Builder->CreateIntCast(cmp, i32, true);
-//   }
-
-//   default:
-//     throw std::runtime_error("unknown binary operator Named" +
-//                              std::string(tokenName(Type)));
-//   }
-// }
-
-llvm::Value *BreakNode::codegen(CodegenContext &cc) {
+CodegenResult BreakNode::codegen(CodegenContext &cc) {
   if (!cc.BreakBB) {
     std::cerr << "Error: 'break' not inside a loop.\n";
-    return nullptr;
+    return {nullptr, nullptr};
   }
-  return cc.Builder->CreateBr(cc.BreakBB);
+  return {cc.Builder->CreateBr(cc.BreakBB),
+          cc.Builder->CreateBr(cc.BreakBB)->getType()};
 }
 
-llvm::Value *CallNode::codegen(CodegenContext &cc) {
+CodegenResult CallNode::codegen(CodegenContext &cc) {
   llvm::Function *callee = cc.Module->getFunction(name);
-  if (!callee)
-    return nullptr;
-
-  //   if (callee->arg_size() != args.size())
-  //     return nullptr;
-
-  std::vector<llvm::Value *> argVals;
-  for (auto &arg : args) {
-    llvm::Value *v = arg->codegen(cc);
-    if (!v)
-      return nullptr;
-    argVals.push_back(v);
+  if (!callee) {
+    llvm::errs() << "Error: Unknown function referenced: " << name << "\n";
+    return {nullptr, nullptr};
   }
 
-  return cc.Builder->CreateCall(callee, argVals);
+  std::vector<llvm::Value *> argRawVals;
+  for (auto &arg : args) {
+    CodegenResult res = arg->codegen(cc);
+    if (!res.value) {
+      llvm::errs() << "Error: Null argument in call to " << name << "\n";
+      return {nullptr, nullptr};
+    }
+    argRawVals.push_back(res.value);
+  }
+
+  llvm::CallInst *call = cc.Builder->CreateCall(callee, argRawVals);
+
+  return {call, call->getType()};
 }
 
-llvm::Value *ContinueNode::codegen(CodegenContext &cc) {
+CodegenResult ContinueNode::codegen(CodegenContext &cc) {
 
   if (!cc.BreakBB) {
     std::cerr << "Error: 'break' not inside a loop.\n";
-    return nullptr;
+    return {nullptr, nullptr};
   }
-  return cc.Builder->CreateBr(cc.ContinueBB);
+  return {cc.Builder->CreateBr(cc.ContinueBB),
+          cc.Builder->CreateBr(cc.ContinueBB)->getType()};
 }
 
-llvm::Value *ForNode::codegen(CodegenContext &cc) {
+CodegenResult ForNode::codegen(CodegenContext &cc) {
   llvm::Function *function = cc.Builder->GetInsertBlock()->getParent();
 
+  // 1. Initializer
   if (init) {
     init->codegen(cc);
   }
+
   llvm::BasicBlock *loopCondBB =
       llvm::BasicBlock::Create(*cc.TheContext, "loopcond", function);
   llvm::BasicBlock *loopBodyBB =
@@ -676,78 +593,95 @@ llvm::Value *ForNode::codegen(CodegenContext &cc) {
   llvm::BasicBlock *loopEndBB =
       llvm::BasicBlock::Create(*cc.TheContext, "loopend", function);
 
+  // Jump to condition
   cc.Builder->CreateBr(loopCondBB);
   cc.Builder->SetInsertPoint(loopCondBB);
-  llvm::Value *condValue = condition->codegen(cc);
-  if (!condValue)
-    return nullptr;
 
-  condValue = cc.Builder->CreateICmpNE(
-      condValue, llvm::ConstantInt::get(condValue->getType(), 0), "forcond");
+  // 2. Condition
+  CodegenResult condRes = condition->codegen(cc);
+  if (!condRes.value)
+    return {nullptr, nullptr};
 
-  cc.Builder->CreateCondBr(condValue, loopBodyBB, loopEndBB);
+  // Convert result to a boolean (i1) for the branch instruction
+  // We use .val and .type from our result
+  llvm::Value *condBool = cc.Builder->CreateICmpNE(
+      condRes.value, llvm::ConstantInt::get(condRes.value->getType(), 0),
+      "forcond");
 
+  cc.Builder->CreateCondBr(condBool, loopBodyBB, loopEndBB);
+
+  // 3. Body
   cc.Builder->SetInsertPoint(loopBodyBB);
+
+  // Track break/continue blocks if your context supports them
+  llvm::BasicBlock *oldBreak = cc.BreakBB;
+  llvm::BasicBlock *oldCont = cc.ContinueBB;
+  cc.BreakBB = loopEndBB;
+  cc.ContinueBB = loopCondBB; // Or an increment block if you had one
+
   if (body)
     body->codegen(cc);
 
+  // 4. Increment
   if (increment)
     increment->codegen(cc);
 
   cc.Builder->CreateBr(loopCondBB);
 
+  // 5. Cleanup
   cc.Builder->SetInsertPoint(loopEndBB);
+  cc.BreakBB = oldBreak;
+  cc.ContinueBB = oldCont;
 
-  // return
-  // llvm::Constant::getNullValue(llvm::Type::getInt32Ty(*cc.TheContext));
-  return nullptr;
+  // Loops usually return void
+  return {nullptr, llvm::Type::getVoidTy(*cc.TheContext)};
 }
 
-llvm::Value *ArrayLiteralNode::codegen(CodegenContext &cc) {
-  // Ensure there is at least one element
+CodegenResult ArrayLiteralNode::codegen(CodegenContext &cc) {
+  // 1. Ensure there is at least one element to determine type
   if (Elements.empty()) {
     std::cerr << "Error: ArrayLiteralNode has no elements\n";
-    return nullptr;
+    return {nullptr, nullptr};
   }
 
-  // Determine the element type from the first element
-  llvm::Value *firstElem = Elements[0]->codegen(cc);
-  if (!firstElem) {
+  // 2. Determine the element type from the first element
+  CodegenResult firstElem = Elements[0]->codegen(cc);
+  if (!firstElem.value) {
     std::cerr << "Error: Could not generate code for array element\n";
-    return nullptr;
+    return {nullptr, nullptr};
   }
 
-  llvm::Type *ElementType = firstElem->getType();
-  if (!ElementType) {
-    std::cerr << "Error: ElementType is null\n";
-    return nullptr;
-  }
+  // Use the type we manually tracked in the result
+  llvm::Type *ElementType = firstElem.type;
 
-  // Create array type
+  // 3. Create array type and allocate memory
   llvm::ArrayType *arrType = llvm::ArrayType::get(ElementType, Elements.size());
   llvm::AllocaInst *arrayAlloc =
       cc.Builder->CreateAlloca(arrType, nullptr, "arraytmp");
 
-  // Store each element in the allocated array
+  // 4. Store each element in the allocated array
   for (size_t i = 0; i < Elements.size(); i++) {
-    llvm::Value *elemVal = Elements[i]->codegen(cc);
-    if (!elemVal) {
+    CodegenResult elemRes = Elements[i]->codegen(cc);
+    if (!elemRes.value) {
       std::cerr << "Error: Could not generate code for element at index " << i
                 << "\n";
       continue;
     }
 
+    // GEP returns a Value* (the address of the specific index)
     llvm::Value *gep = cc.Builder->CreateGEP(
         arrType, arrayAlloc, {cc.Builder->getInt32(0), cc.Builder->getInt32(i)},
         "elemptr");
 
-    cc.Builder->CreateStore(elemVal, gep);
+    // Store the value into that address
+    cc.Builder->CreateStore(elemRes.value, gep);
   }
 
-  return arrayAlloc; // return pointer to the allocated array
+  // 5. Return the address of the array and the ArrayType itself
+  return {arrayAlloc, arrType};
 }
 
-llvm::Value *ArrayAccessNode::codegen(CodegenContext &cc) {
+CodegenResult ArrayAccessNode::codegen(CodegenContext &cc) {
   llvm::Value *arrayPtr = cc.lookup(arrayName);
 
   if (!arrayPtr)
@@ -768,24 +702,27 @@ llvm::Value *ArrayAccessNode::codegen(CodegenContext &cc) {
 
   llvm::IRBuilder<> &builder = *cc.Builder;
 
-  llvm::Value *indexVal = indexExpr->codegen(cc);
-  if (!indexVal->getType()->isIntegerTy())
+  CodegenResult indexVal = indexExpr->codegen(cc);
+  if (!indexVal.value->getType()->isIntegerTy())
     throw std::runtime_error("Array index must be integer");
 
-  if (indexVal->getType() != builder.getInt32Ty())
-    indexVal = builder.CreateIntCast(indexVal, builder.getInt32Ty(), true);
+  if (indexVal.value->getType() != builder.getInt32Ty())
+    indexVal.value =
+        builder.CreateIntCast(indexVal.value, builder.getInt32Ty(), true);
 
-  llvm::Value *elemPtr =
-      builder.CreateGEP(arrayType, arrayPtr, {builder.getInt32(0), indexVal},
-                        arrayName + "_elem_ptr");
+  llvm::Value *elemPtr = builder.CreateGEP(
+      arrayType, arrayPtr, {builder.getInt32(0), indexVal.value},
+      arrayName + "_elem_ptr");
 
   llvm::Type *elementType = arrayType->getArrayElementType();
 
   // Important: return the *loaded value*, not just the pointer
-  return builder.CreateLoad(elementType, elemPtr, arrayName + "_elem");
+  return {
+      builder.CreateLoad(elementType, elemPtr, arrayName + "_elem"),
+      builder.CreateLoad(elementType, elemPtr, arrayName + "_elem")->getType()};
 }
 
-llvm::Value *ArrayAssignNode::codegen(CodegenContext &cc) {
+CodegenResult ArrayAssignNode::codegen(CodegenContext &cc) {
 
   llvm::Value *arrayVal = cc.lookup(name);
   if (!arrayVal)
@@ -799,58 +736,67 @@ llvm::Value *ArrayAssignNode::codegen(CodegenContext &cc) {
   if (!arrayType->isArrayTy())
     throw std::runtime_error(name + " is not an array");
 
-  llvm::Value *index = this->index->codegen(cc);
-  if (!index)
+  CodegenResult index = this->index->codegen(cc);
+  if (!index.value)
     throw std::runtime_error("Invalid index expression in array assignment");
 
-  if (!index->getType()->isIntegerTy())
+  if (!index.value->getType()->isIntegerTy())
     throw std::runtime_error("Array index must be integer");
 
-  if (index->getType() != llvm::Type::getInt32Ty(*cc.TheContext))
-    index = cc.Builder->CreateIntCast(
-        index, llvm::Type::getInt32Ty(*cc.TheContext), true, "idxcast");
+  if (index.value->getType() != llvm::Type::getInt32Ty(*cc.TheContext))
+    index.value = cc.Builder->CreateIntCast(
+        index.value, llvm::Type::getInt32Ty(*cc.TheContext), true, "idxcast");
 
   llvm::Value *zero =
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*cc.TheContext), 0);
 
-  llvm::Value *elemPtr = cc.Builder->CreateGEP(arrayType, alloca, {zero, index},
-                                               name + "_elem_ptr");
+  llvm::Value *elemPtr = cc.Builder->CreateGEP(
+      arrayType, alloca, {zero, index.value}, name + "_elem_ptr");
 
-  llvm::Value *val = value->codegen(cc);
-  if (!val)
+  CodegenResult val = value->codegen(cc);
+  if (!val.value)
     throw std::runtime_error("Invalid RHS in array assignment");
 
   llvm::Type *elemType = arrayType->getArrayElementType();
-  if (val->getType() != elemType)
+  if (val.value->getType() != elemType)
     throw std::runtime_error("Type mismatch in array assignment");
 
-  cc.Builder->CreateStore(val, elemPtr);
+  cc.Builder->CreateStore(val.value, elemPtr);
 
   return val;
 }
-
-llvm::Value *SizeOfNode::codegen(CodegenContext &cc) {
+CodegenResult SizeOfNode::codegen(CodegenContext &cc) {
   if (!val) {
-    throw std::runtime_error("INVALUD VALUE AT SIZEOF NODE");
-    return nullptr;
+    throw std::runtime_error("INVALID VALUE AT SIZEOF NODE");
   }
-  // uint32_t type =
-  //     cc.Module->getDataLayout().getTypeAllocSize(val->codegen(cc)->getType());
+  CodegenResult valRes = val->codegen(cc);
+  llvm::Type *targetType = valRes.type;
 
-  return llvm::ConstantExpr::getSizeOf(val->codegen(cc)->getType());
+  if (!targetType) {
+    throw std::runtime_error("Could not determine type for sizeof");
+  }
+
+  const llvm::DataLayout &DL = cc.Module->getDataLayout();
+  uint64_t sizeInBytes = DL.getTypeAllocSize(targetType);
+
+  llvm::Type *i64Ty = llvm::Type::getInt64Ty(*cc.TheContext);
+  llvm::Value *sizeVal = llvm::ConstantInt::get(i64Ty, sizeInBytes);
+
+  return {sizeVal, i64Ty};
 }
 
-llvm::Value *castToI64(llvm::Value *v, CodegenContext &cc,
-                       const std::string &varName = "") {
+CodegenResult castToI64(CodegenResult v, CodegenContext &cc,
+                        const std::string &varName = "") {
   llvm::Type *i64Ty = llvm::Type::getInt64Ty(*cc.TheContext);
 
   // Already i64
-  if (v->getType()->isIntegerTy(64))
+  if (v.value->getType()->isIntegerTy(64))
     return v;
 
   // Single integer smaller than 64-bit → extend
-  if (v->getType()->isIntegerTy())
-    return cc.Builder->CreateZExt(v, i64Ty);
+  if (v.value->getType()->isIntegerTy())
+    return {cc.Builder->CreateZExt(v.value, i64Ty),
+            cc.Builder->CreateZExt(v.value, i64Ty)->getType()};
 
   // Pointer or array stored in context
   if (!varName.empty()) {
@@ -861,166 +807,203 @@ llvm::Value *castToI64(llvm::Value *v, CodegenContext &cc,
       if (elemType->isIntegerTy(8)) {
         // Arrays or pointers of i8 → cast to integer
         if (type->isArrayTy())
-          v = cc.Builder->CreateBitCast(
-              v, llvm::PointerType::get(llvm::Type::getInt8Ty(*cc.TheContext),
-                                        false));
-        return cc.Builder->CreatePtrToInt(v, i64Ty);
+          v.value = cc.Builder->CreateBitCast(
+              v.value, llvm::PointerType::get(
+                           llvm::Type::getInt8Ty(*cc.TheContext), false));
+        return {cc.Builder->CreatePtrToInt(v.value, i64Ty),
+                cc.Builder->CreatePtrToInt(v.value, i64Ty)->getType()};
       }
     }
   }
 
   // Float → integer
-  if (v->getType()->isFloatingPointTy())
-    return cc.Builder->CreateFPToUI(v, i64Ty);
+  if (v.value->getType()->isFloatingPointTy())
+    return {cc.Builder->CreateFPToUI(v.value, i64Ty),
+            cc.Builder->CreateFPToUI(v.value, i64Ty)->getType()};
 
   llvm_unreachable("Unsupported type for syscall argument");
 }
 
-llvm::Value *SyscallNode::codegen(CodegenContext &cc) {
+CodegenResult SyscallNode::codegen(CodegenContext &cc) {
   llvm::Type *i64Ty = llvm::Type::getInt64Ty(*cc.TheContext);
   std::vector<llvm::Value *> llvm_args;
 
-  // Generate code and cast each arg to i64
   for (auto &arg : args) {
-    llvm::Value *v = arg->codegen(cc);
-    llvm_args.push_back(v);
+    CodegenResult res = arg->codegen(cc);
+    if (!res.value)
+      continue;
+
+    llvm::Value *val64;
+    if (res.value->getType()->isPointerTy()) {
+      val64 = cc.Builder->CreatePtrToInt(res.value, i64Ty);
+    } else {
+      val64 = cc.Builder->CreateZExtOrBitCast(res.value, i64Ty);
+    }
+    llvm_args.push_back(val64);
   }
 
-  // Zero-pad to 6 arguments
-  while (llvm_args.size() < 6)
+  while (llvm_args.size() < 6) {
     llvm_args.push_back(llvm::ConstantInt::get(i64Ty, 0));
+  }
 
-  // Syscall number
-  llvm::Value *syscall_num = llvm::ConstantInt::get(i64Ty, name);
+  llvm::Value *syscallNumVal = llvm::ConstantInt::get(i64Ty, name);
 
-  // Final argument list: syscall number first
-  std::vector<llvm::Value *> final_args = {syscall_num};
-  final_args.insert(final_args.end(), llvm_args.begin(), llvm_args.begin() + 6);
+  std::vector<llvm::Value *> final_raw_args = {syscallNumVal};
+  final_raw_args.insert(final_raw_args.end(), llvm_args.begin(),
+                        llvm_args.begin() + 6);
 
   llvm::InlineAsm *asmSyscall = llvm::InlineAsm::get(
       llvm::FunctionType::get(i64Ty, std::vector<llvm::Type *>(7, i64Ty),
                               false),
       "syscall",
       "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory}",
-      true // hasSideEffects
-  );
+      true);
 
-  return cc.Builder->CreateCall(asmSyscall, final_args);
+  llvm::Value *result =
+      cc.Builder->CreateCall(asmSyscall, final_raw_args, "syscall_res");
+
+  return {result, i64Ty};
 }
 
-llvm::Value *PointerReferenceNode::codegen(CodegenContext &cc) {
+CodegenResult PointerReferenceNode::codegen(CodegenContext &cc) {
   llvm::Value *var = cc.lookup(name);
 
   if (!var) {
     throw std::runtime_error("CANNOT FIND VALUE " + name);
   }
-  return var;
+  return {var, var->getType()};
 }
 
-llvm::Value *PointerDeReferenceAssingNode::codegen(CodegenContext &cc) {
-  llvm::Value *arrayVal = cc.lookup(name);
-  if (!arrayVal)
-    throw std::runtime_error("Unknown pointer array: " + name);
+CodegenResult PointerDeReferenceAssingNode::codegen(CodegenContext &cc) {
+  llvm::Value *ptrVariableAddr = cc.lookup(name);
+  if (!ptrVariableAddr)
+    throw std::runtime_error("Unknown pointer variable: " + name);
 
-  llvm::Type *ptrType = cc.lookupType(name);
-  llvm::Type *elemType = cc.lookupElementType(name);
+  llvm::Type *ptrVarType =
+      cc.lookupType(name); // The type of the variable (usually ptr)
+  llvm::Type *elementType =
+      cc.lookupElementType(name); // The type of data being pointed to
 
   llvm::Value *actualPtr =
-      cc.Builder->CreateLoad(ptrType, arrayVal, name + "_ptr");
+      cc.Builder->CreateLoad(ptrVarType, ptrVariableAddr, name + "_val");
 
-  llvm::Value *idx = index->codegen(cc);
+  CodegenResult idxRes = index->codegen(cc);
+  if (!idxRes.value)
+    throw std::runtime_error("Invalid index for pointer access");
+
   llvm::Value *elemPtr =
-      cc.Builder->CreateGEP(elemType, actualPtr, {idx}, "ptr_elem");
+      cc.Builder->CreateGEP(elementType, actualPtr, {idxRes.value}, "ptr_elem");
 
-  llvm::Value *value = val->codegen(cc);
-  return cc.Builder->CreateStore(value, elemPtr);
+  CodegenResult valueRes = val->codegen(cc);
+  if (!valueRes.value)
+    throw std::runtime_error("Invalid RHS value in pointer assignment");
+
+  cc.Builder->CreateStore(valueRes.value, elemPtr);
+
+  return valueRes;
 }
 
-llvm::Value *DeReferenceNode::codegen(CodegenContext &cc) {
-  llvm::Value *var = cc.lookup(name);
-  if (!var) {
+CodegenResult DeReferenceNode::codegen(CodegenContext &cc) {
+  // 1. Get the address of the pointer variable (the alloca)
+  llvm::Value *varAddr = cc.lookup(name);
+  if (!varAddr) {
     llvm::errs() << "Unknown variable '" << name << "'\n";
-    return nullptr;
+    return {nullptr, nullptr};
   }
+
+  // 2. Get the types from context
   llvm::Type *ptrType = cc.lookupType(name);
-
-  if (nullptr == ptrType) {
-    throw std::runtime_error("NullPointer, Baby");
-  }
-  if (!ptrType || !ptrType->isPointerTy()) {
-    llvm::errs() << "'" << name << "' is not a pointer\n";
-    return nullptr;
-  }
-
-  llvm::Value *ptrVal = cc.Builder->CreateLoad(ptrType, var, name + "_ptr");
   llvm::Type *elementType = cc.lookupElementType(name);
 
-  llvm::errs() << "DeReferenceNode '" << name << "' elementType: ";
-  elementType->print(llvm::errs());
-  llvm::errs() << "\n";
+  if (!ptrType) {
+    throw std::runtime_error("NullPointer exception in compiler logic for " +
+                             name);
+  }
 
-  // If there's an index, apply GEP before loading
+  // 3. Load the actual address stored in the pointer variable
+  llvm::Value *actualPtr =
+      cc.Builder->CreateLoad(ptrType, varAddr, name + "_ptr");
+
+  // 4. Handle indexing (e.g., ptr[i])
   if (index) {
-    llvm::Value *idx = index->codegen(cc);
-    ptrVal = cc.Builder->CreateGEP(elementType, ptrVal, {idx}, "ptr_elem");
+    CodegenResult idxRes = index->codegen(cc);
+    if (!idxRes.value)
+      return {nullptr, nullptr};
+
+    // GEP to calculate the specific offset
+    actualPtr = cc.Builder->CreateGEP(elementType, actualPtr, {idxRes.value},
+                                      "ptr_elem");
   }
 
-  return cc.Builder->CreateLoad(elementType, ptrVal, "deref_" + name);
+  // 5. Final Load: Read the data at that address
+  llvm::Value *finalVal =
+      cc.Builder->CreateLoad(elementType, actualPtr, "deref_" + name);
+
+  // Return using .value
+  return {finalVal, elementType};
 }
 
-llvm::Value *castValue(llvm::IRBuilder<> &builder, llvm::Value *val,
-                       llvm::Type *targetType, bool isSigned) {
-  llvm::Type *srcType = val->getType();
+CodegenResult castValue(llvm::IRBuilder<> &builder, CodegenResult res,
+                        llvm::Type *targetType, bool isSigned) {
+  // 1. Extract the raw LLVM Value and Type from the struct
+  llvm::Value *val = res.value;
+  llvm::Type *srcType = res.type; // Use the tracked type, not val->getType()
 
+  if (!val || !srcType)
+    return {nullptr, nullptr};
   if (srcType == targetType)
-    return val;
+    return res;
 
-  // ===== Integer ↔ Integer (covers CHAR <-> INT, BOOL, etc) =====
+  llvm::Value *resultVal = nullptr;
+
+  // ===== Integer ↔ Integer =====
   if (srcType->isIntegerTy() && targetType->isIntegerTy()) {
-    return builder.CreateIntCast(val, targetType, isSigned);
+    resultVal = builder.CreateIntCast(val, targetType, isSigned);
   }
-
   // ===== Integer → Float =====
-  if (srcType->isIntegerTy() && targetType->isFloatingPointTy()) {
-    return isSigned ? builder.CreateSIToFP(val, targetType)
-                    : builder.CreateUIToFP(val, targetType);
+  else if (srcType->isIntegerTy() && targetType->isFloatingPointTy()) {
+    resultVal = isSigned ? builder.CreateSIToFP(val, targetType)
+                         : builder.CreateUIToFP(val, targetType);
   }
-
-  // ===== Float → Integer (covers float -> char too) =====
-  if (srcType->isFloatingPointTy() && targetType->isIntegerTy()) {
-    return isSigned ? builder.CreateFPToSI(val, targetType)
-                    : builder.CreateFPToUI(val, targetType);
+  // ===== Float → Integer =====
+  else if (srcType->isFloatingPointTy() && targetType->isIntegerTy()) {
+    resultVal = isSigned ? builder.CreateFPToSI(val, targetType)
+                         : builder.CreateFPToUI(val, targetType);
   }
-
   // ===== Float ↔ Float =====
-  if (srcType->isFloatingPointTy() && targetType->isFloatingPointTy()) {
-    return builder.CreateFPCast(val, targetType);
+  else if (srcType->isFloatingPointTy() && targetType->isFloatingPointTy()) {
+    resultVal = builder.CreateFPCast(val, targetType);
+  }
+  // ===== Pointer ↔ Pointer =====
+  else if (srcType->isPointerTy() && targetType->isPointerTy()) {
+    // In opaque pointer LLVM, bitcast between pointers is often a no-op
+    // but kept here for compatibility or specific address spaces.
+    resultVal = builder.CreateBitCast(val, targetType);
+  }
+  // ===== Pointer ↔ Integer =====
+  else if (srcType->isPointerTy() && targetType->isIntegerTy()) {
+    resultVal = builder.CreatePtrToInt(val, targetType);
+  } else if (srcType->isIntegerTy() && targetType->isPointerTy()) {
+    resultVal = builder.CreateIntToPtr(val, targetType);
   }
 
-  // ===== Pointer stuff (optional for now) =====
-  if (srcType->isPointerTy() && targetType->isPointerTy()) {
-    return builder.CreateBitCast(val, targetType);
+  if (resultVal) {
+    return {resultVal, targetType};
   }
 
-  if (srcType->isPointerTy() && targetType->isIntegerTy()) {
-    return builder.CreatePtrToInt(val, targetType);
-  }
-
-  if (srcType->isIntegerTy() && targetType->isPointerTy()) {
-    return builder.CreateIntToPtr(val, targetType);
-  }
-
-  llvm::errs() << "Unsupported cast\n";
-  return nullptr;
+  llvm::errs() << "Unsupported cast requested\n";
+  return {nullptr, nullptr};
 }
 
-llvm::Value *CastNode::codegen(CodegenContext &cc) {
-  llvm::Value *v = Value->codegen(cc);
+CodegenResult CastNode::codegen(CodegenContext &cc) {
+  CodegenResult v = Value->codegen(cc);
   return castValue(*cc.Builder, v, targetType, true);
 }
 
-llvm::Value *StructCreateNode::codegen(CodegenContext &cc) {
+CodegenResult StructCreateNode::codegen(CodegenContext &cc) {
+  // 1. Create the opaque struct type
   llvm::StructType *TheStruct = llvm::StructType::create(*cc.TheContext, name);
+  
   std::vector<llvm::Type *> fieldTypes;
   fieldTypes.reserve(types.size());
 
@@ -1034,12 +1017,11 @@ llvm::Value *StructCreateNode::codegen(CodegenContext &cc) {
 
   TheStruct->setBody(fieldTypes);
 
-  auto idx = std::make_unique<StructIndex>(TheStruct, indexs);
+  cc.CrateStructWithIndex(name, TheStruct, indexs);
 
-  cc.StructIndexList.emplace(name, std::move(idx));
-
-  return nullptr;
+  return {nullptr, nullptr};
 }
+
 
 // int main() {
 //   CodegenContext ctx("myprogram");
