@@ -2,8 +2,6 @@
 #include <cctype>
 #include <colors.h>
 #include <cstdio>
-#include <iomanip>
-#include <lexer.h>
 #include <string>
 #include <vector>
 
@@ -397,6 +395,10 @@ std::vector<Token> Lexer::lexer() {
       Consume();
       out.push_back(make(ANDPERCENT, "&"));
       break;
+    case '.':
+      Consume();
+      out.push_back(make(DOT, "."));
+      break;
     default:
       Consume();
       out.push_back(make(IDENTIFIER, std::string(1, c)));
@@ -512,6 +514,8 @@ const char *tokenName(TokenType t) {
     return "BREAK";
   case STRUCT:
     return "STRUCT";
+  case DOT:
+    return "DOT";
   default:
     return "UNKNOWN";
   }

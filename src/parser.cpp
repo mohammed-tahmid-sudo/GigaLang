@@ -338,9 +338,18 @@ std::unique_ptr<ast> Parser::ParseComparison() {
   }
   return left;
 }
+std::unique_ptr<ast> Parser::ParseStructCall() {
+  std::unique_ptr<ast> left = ParseComparison();
+  if (Peek().type == DOT) {
+    Consume();
+    Token name = Expect(IDENTIFIER);
+    left = std::make_unique<FieldAccessNode>(std::move(left), name.value);
+  }
+  return left;
+}
 
 std::unique_ptr<ast> Parser::ParseAssignment() {
-  std::unique_ptr<ast> left = ParseComparison();
+  std::unique_ptr<ast> left = ParseStructCall();
   if (Peek().type == EQ) {
     Consume();
     auto right = ParseExpression();
@@ -696,29 +705,16 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
 int main() {
   // --- Source Code to Compile ---
   std::string src = R"(
-func strlen(str: Char* ) -> Integer {
-	let i:Integer = 0;
-	while (*str[i] != '\0') { i = i + 1; }
-	return i;
-}
-
 
 struct bio [
 	name:Char*, 
 	age:Integer
 ];
+
 func main() -> Integer {
-
-	let x: Integer = 10;
-	let y: Integer = 20;
-	let sum: Integer = x + y;
-
 	let s:Char[13] = "hello world";
-
-	let bo:bio = ["tahmid", 21]; 
-
-	@Syscall(1, 1, &s, 13);
-
+	let bo:bio[2] = ["tahmid", 21]; 
+	@Syscall(1, 1, &bo.age, 13);
 	return 0;
 }
 

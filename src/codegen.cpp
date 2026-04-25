@@ -45,29 +45,40 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
   if (t.size() > 7 && t.substr(t.size() - 7) == "POINTER") {
     Token baseTypeToken;
     baseTypeToken.value = t.substr(0, t.size() - 7);
+
     llvm::Type *baseType = GetTypeNonVoid(baseTypeToken, cc);
+
     return llvm::PointerType::get(baseType, 0);
   }
 
   if (type.type == IDENTIFIER) {
-    auto it = cc.StructIndexList.find(type.value)->second;
-    return it;
+    auto it = cc.StructIndexList.find(type.value);
+
+    if (it == cc.StructIndexList.end()) {
+      throw std::runtime_error("Unknown struct type: " + type.value);
+    }
+
+    return it->second;
   }
 
   if (t == "INTEGER") {
     return llvm::Type::getInt32Ty(*cc.TheContext);
+
   } else if (t == "FLOAT") {
     return llvm::Type::getFloatTy(*cc.TheContext);
+
   } else if (t == "STRING") {
-    return llvm::Type::getInt8Ty(*cc.TheContext);
+    return llvm::PointerType::get(
+        llvm::Type::getInt8Ty(*cc.TheContext), 0);
+
   } else if (t == "BOOLEAN") {
     return llvm::Type::getInt1Ty(*cc.TheContext);
+
   } else if (t == "CHAR") {
     return llvm::Type::getInt8Ty(*cc.TheContext);
   }
 
   throw std::runtime_error("Invalid Type: " + type.value);
-  return nullptr;
 }
 
 llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
@@ -104,17 +115,21 @@ CodegenResult BooleanNode::codegen(CodegenContext &cc) {
       llvm::ConstantInt::get(llvm::Type::getInt1Ty(*cc.TheContext), val, true),
       llvm::Type::getInt1Ty(*cc.TheContext)};
 }
-
 CodegenResult VariableDeclareNode::codegen(CodegenContext &cc) {
   llvm::Type *elementType = GetTypeNonVoid(Type, cc);
   llvm::AllocaInst *alloca = nullptr;
 
+  // =========================
+  // ARRAY CASE
+  // =========================
   if (arraySize.has_value() && *arraySize > 1) {
     llvm::ArrayType *arrayType = llvm::ArrayType::get(elementType, *arraySize);
+
     alloca = cc.Builder->CreateAlloca(arrayType, nullptr, name);
 
     if (val) {
       ArrayLiteralNode *arrayNode = dynamic_cast<ArrayLiteralNode *>(val.get());
+
       if (arrayNode) {
         for (size_t i = 0; i < arrayNode->Elements.size(); ++i) {
           CodegenResult elemRes = arrayNode->Elements[i]->codegen(cc);
@@ -123,7 +138,16 @@ CodegenResult VariableDeclareNode::codegen(CodegenContext &cc) {
               arrayType, alloca,
               {cc.Builder->getInt32(0), cc.Builder->getInt32(i)}, "elemptr");
 
-          cc.Builder->CreateStore(elemRes.value, gep);
+          // IMPORTANT: LLVM 15+ safe rule
+          llvm::Value *storeVal = elemRes.value;
+
+          // only load if this node represents a memory address
+          if (elemRes.type && elemRes.value &&
+              elemRes.value->getType()->isPointerTy()) {
+            storeVal = cc.Builder->CreateLoad(elemRes.type, elemRes.value);
+          }
+
+          cc.Builder->CreateStore(storeVal, gep);
         }
       }
     } else {
@@ -131,16 +155,31 @@ CodegenResult VariableDeclareNode::codegen(CodegenContext &cc) {
         llvm::Value *gep = cc.Builder->CreateGEP(
             arrayType, alloca,
             {cc.Builder->getInt32(0), cc.Builder->getInt32(i)});
+
         llvm::Value *zero = llvm::Constant::getNullValue(elementType);
+
         cc.Builder->CreateStore(zero, gep);
       }
     }
-  } else {
+  }
+
+  // =========================
+  // SCALAR CASE
+  // =========================
+  else {
     alloca = cc.Builder->CreateAlloca(elementType, nullptr, name);
 
     llvm::Value *initVal;
+
     if (val) {
-      initVal = val->codegen(cc).value;
+      CodegenResult r = val->codegen(cc);
+
+      initVal = r.value;
+
+      // LLVM 15+ safe: only rely on pointer-ness, not element type extraction
+      if (r.value && r.value->getType()->isPointerTy()) {
+        initVal = cc.Builder->CreateLoad(r.type, r.value);
+      }
     } else {
       initVal = llvm::Constant::getNullValue(elementType);
     }
@@ -150,6 +189,7 @@ CodegenResult VariableDeclareNode::codegen(CodegenContext &cc) {
 
   cc.addVariable(name, alloca, alloca->getType(), elementType);
 
+  // variables are always LHS (pointer)
   return {alloca, elementType};
 }
 
@@ -578,28 +618,23 @@ CodegenResult ForNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResult ArrayLiteralNode::codegen(CodegenContext &cc) {
-  // 1. Ensure there is at least one element to determine type
   if (Elements.empty()) {
     std::cerr << "Error: ArrayLiteralNode has no elements\n";
     return {nullptr, nullptr};
   }
 
-  // 2. Determine the element type from the first element
   CodegenResult firstElem = Elements[0]->codegen(cc);
   if (!firstElem.value) {
     std::cerr << "Error: Could not generate code for array element\n";
     return {nullptr, nullptr};
   }
 
-  // Use the type we manually tracked in the result
   llvm::Type *ElementType = firstElem.type;
 
-  // 3. Create array type and allocate memory
   llvm::ArrayType *arrType = llvm::ArrayType::get(ElementType, Elements.size());
   llvm::AllocaInst *arrayAlloc =
       cc.Builder->CreateAlloca(arrType, nullptr, "arraytmp");
 
-  // 4. Store each element in the allocated array
   for (size_t i = 0; i < Elements.size(); i++) {
     CodegenResult elemRes = Elements[i]->codegen(cc);
     if (!elemRes.value) {
@@ -608,16 +643,13 @@ CodegenResult ArrayLiteralNode::codegen(CodegenContext &cc) {
       continue;
     }
 
-    // GEP returns a Value* (the address of the specific index)
     llvm::Value *gep = cc.Builder->CreateGEP(
         arrType, arrayAlloc, {cc.Builder->getInt32(0), cc.Builder->getInt32(i)},
         "elemptr");
 
-    // Store the value into that address
     cc.Builder->CreateStore(elemRes.value, gep);
   }
 
-  // 5. Return the address of the array and the ArrayType itself
   return {arrayAlloc, arrType};
 }
 
@@ -976,7 +1008,7 @@ CodegenResult FieldAccessNode::codegen(CodegenContext &cc) {
   if (it == cc.StructToIndex.end())
     return {nullptr, nullptr};
 
-  const auto &idx = it->second; // <-- you missed this
+  const auto &idx = it->second;
 
   int fieldIndex = -1;
   for (const auto &[fieldName, index] : idx) {
@@ -989,14 +1021,13 @@ CodegenResult FieldAccessNode::codegen(CodegenContext &cc) {
   if (fieldIndex == -1)
     return {nullptr, nullptr};
 
-  llvm::Value *ptr =
+  llvm::Value *fieldPtr =
       cc.Builder->CreateStructGEP(structTy, base.value, fieldIndex);
 
   llvm::Type *fieldTy = structTy->getElementType(fieldIndex);
 
-  llvm::Value *val = cc.Builder->CreateLoad(fieldTy, ptr);
-
-  return {val, fieldTy};
+  // IMPORTANT: DO NOT LOAD HERE
+  return {fieldPtr, fieldTy};
 }
 
 // int main() {
