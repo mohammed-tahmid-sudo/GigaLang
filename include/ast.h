@@ -36,12 +36,21 @@ struct CodegenContext {
   std::unique_ptr<llvm::IRBuilder<>> Builder;
   std::unique_ptr<llvm::Module> Module;
   std::vector<std::unordered_map<std::string, VWT>> NamedValuesStack;
-  std::unordered_map<std::string, std::unique_ptr<StructIndex>> StructIndexList;
+
+  std::unordered_map<std::string, llvm::StructType *> StructIndexList;
+  std::unordered_map<llvm::StructType *,
+                     std::vector<std::pair<std::string, size_t>>>
+      StructToIndex;
 
   llvm::BasicBlock *BreakBB = nullptr;
   llvm::BasicBlock *ContinueBB = nullptr;
 
-  // Scopes
+  void CreateStructWithIndex(const std::string &s, llvm::StructType *StructType,
+                             std::vector<std::pair<std::string, size_t>> args) {
+    StructIndexList[s] = StructType;
+    StructToIndex[StructType] = args;
+  }
+
   void pushScope() { NamedValuesStack.push_back({}); }
   void popScope() { NamedValuesStack.pop_back(); }
 
@@ -366,5 +375,15 @@ struct StructCreateNode : ast {
       : name(s), types(std::move(tps)) {}
   std::string repr() override { return "CastNode"; }
 
+  CodegenResult codegen(CodegenContext &cc) override;
+};
+
+struct FieldAccessNode : ast {
+  std::unique_ptr<ast> Base;
+  std::string name;
+  FieldAccessNode(std::unique_ptr<ast> bs, const std::string &s)
+      : Base(std::move(bs)), name(s) {}
+
+  std::string repr() override { return "FIELDACCESNODE"; }
   CodegenResult codegen(CodegenContext &cc) override;
 };

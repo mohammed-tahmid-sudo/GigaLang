@@ -50,8 +50,8 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
   }
 
   if (type.type == IDENTIFIER) {
-    auto it = *cc.StructIndexList.find(type.value)->second;
-    return it.TheStruct;
+    auto it = cc.StructIndexList.find(type.value)->second;
+    return it;
   }
 
   if (t == "INTEGER") {
@@ -154,21 +154,30 @@ CodegenResult VariableDeclareNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResult AssignmentNode::codegen(CodegenContext &cc) {
-  // 1. Get the LHS result (the "where").
-  // This will return the address of a variable OR a field.
-  CodegenResult lhsRes = lhs->codegen(cc);
-  if (!lhsRes.value) {
+  llvm::Value *destAddr = nullptr;
+
+  // 1. If LHS is a variable, bypass its codegen() to get the raw address
+  if (auto *varRef = dynamic_cast<VariableReferenceNode *>(lhs.get())) {
+    destAddr = cc.lookup(varRef->Name);
+  } else {
+    CodegenResult lhsRes = lhs->codegen(cc);
+    destAddr = lhsRes.value;
+  }
+
+  if (!destAddr) {
     llvm::errs() << "Error: invalid LHS in assignment!\n";
     return {nullptr, nullptr};
   }
 
-  // 2. Get the RHS result (the "what").
+  // 3. Get the RHS result (the "what").
   CodegenResult rhsRes = rhs->codegen(cc);
   if (!rhsRes.value) {
     llvm::errs() << "Error in assignment: RHS expression returned null!\n";
     return {nullptr, nullptr};
   }
-  cc.Builder->CreateStore(rhsRes.value, lhsRes.value);
+
+  // 4. Perform the store: store <value>, <pointer>
+  cc.Builder->CreateStore(rhsRes.value, destAddr);
 
   return rhsRes;
 }
@@ -281,10 +290,14 @@ CodegenResult FunctionNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResult VariableReferenceNode::codegen(CodegenContext &cc) {
-  llvm::Value *ptr = cc.lookup(Name);   // pointer
-  llvm::Type *ty = cc.lookupType(Name); // value type
+  llvm::Value *ptr = cc.lookup(Name); // The address (alloca)
+  llvm::Type *ty =
+      cc.lookupElementType(Name); // The actual data type (i32, Struct, etc.)
 
-  return {cc.Builder->CreateLoad(ty, ptr, Name), cc.lookupType(Name)};
+  if (!ptr)
+    throw std::runtime_error("Unknown variable: " + Name);
+
+  return {cc.Builder->CreateLoad(ty, ptr, Name), ty};
 }
 
 CodegenResult WhileNode::codegen(CodegenContext &cc) {
@@ -374,166 +387,93 @@ CodegenResult IfNode::codegen(CodegenContext &cc) {
   return {nullptr, nullptr};
 }
 
+CodegenResult autoLoad(CodegenContext &cc, CodegenResult res) {
+  if (!res.value)
+    return res;
+
+  if (res.value->getType()->isPointerTy() && res.type != res.value->getType()) {
+    return {cc.Builder->CreateLoad(res.type, res.value), res.type};
+  }
+  return res;
+}
+
 CodegenResult BinaryOperationNode::codegen(CodegenContext &cc) {
+  // 1. Get raw results from children
   CodegenResult LHS = Left->codegen(cc);
   CodegenResult RHS = Right->codegen(cc);
 
   if (!LHS.value || !RHS.value)
     throw std::runtime_error("null operand in binary operation");
 
-  // LHS->getType()->print(llvm::errs());
-  // llvm::errs() << "\n";
-  // RHS->getType()->print(llvm::errs());
-  // llvm::errs() << "\n";
+  // 2. Convert addresses (L-Values) into values (R-Values)
+  LHS = autoLoad(cc, LHS);
+  RHS = autoLoad(cc, RHS);
 
+  // 3. Unify Types (Promotion)
+  auto *i32 = llvm::Type::getInt32Ty(*cc.TheContext);
+  auto *i1 = llvm::Type::getInt1Ty(*cc.TheContext);
+
+  // Promote booleans/chars to i32 for arithmetic
+  if (LHS.value->getType()->isIntegerTy(1) ||
+      LHS.value->getType()->isIntegerTy(8)) {
+    LHS.value = cc.Builder->CreateIntCast(LHS.value, i32, true);
+    LHS.type = i32;
+  }
+  if (RHS.value->getType()->isIntegerTy(1) ||
+      RHS.value->getType()->isIntegerTy(8)) {
+    RHS.value = cc.Builder->CreateIntCast(RHS.value, i32, true);
+    RHS.type = i32;
+  }
+
+  // Ensure LHS and RHS match
+  if (LHS.value->getType() != RHS.value->getType()) {
+    if (LHS.value->getType()->isIntegerTy() &&
+        RHS.value->getType()->isIntegerTy()) {
+      RHS.value =
+          cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
+      RHS.type = LHS.type;
+    } else {
+      // Log types for debugging
+      llvm::errs() << "LHS: ";
+      LHS.value->getType()->print(llvm::errs());
+      llvm::errs() << "\nRHS: ";
+      RHS.value->getType()->print(llvm::errs());
+      throw std::runtime_error(
+          "\nCannot perform arithmetic on incompatible types");
+    }
+  }
+
+  // 4. Generate Instructions
   switch (Type) {
-
   case TokenType::PLUS:
+    return {cc.Builder->CreateAdd(LHS.value, RHS.value, "addtmp"), LHS.type};
   case TokenType::MINUS:
+    return {cc.Builder->CreateSub(LHS.value, RHS.value, "subtmp"), LHS.type};
   case TokenType::STAR:
-  case TokenType::SLASH: {
-    // If either operand is i1, promote to i32
-    auto *i32 = llvm::Type::getInt32Ty(*cc.TheContext);
-    if (LHS.value->getType()->isIntegerTy(1))
-      LHS.value = cc.Builder->CreateIntCast(LHS.value, i32, true);
-    if (RHS.value->getType()->isIntegerTy(1))
-      RHS.value = cc.Builder->CreateIntCast(RHS.value, i32, true);
+    return {cc.Builder->CreateMul(LHS.value, RHS.value, "multmp"), LHS.type};
+  case TokenType::SLASH:
+    return {cc.Builder->CreateSDiv(LHS.value, RHS.value, "divtmp"), LHS.type};
 
-    // If types still mismatch, cast RHS to match LHS
-    if (LHS.value->getType() != RHS.value->getType()) {
-      if (LHS.value->getType()->isIntegerTy() &&
-          RHS.value->getType()->isIntegerTy()) {
-        RHS.value =
-            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
-      } else {
-        throw std::runtime_error(
-            "Cannot perform arithmetic on incompatible types");
-      }
-    }
+  case TokenType::EQEQ:
+    return {cc.Builder->CreateICmpEQ(LHS.value, RHS.value, "eqtmp"), i1};
+  case TokenType::NOTEQ:
+    return {cc.Builder->CreateICmpNE(LHS.value, RHS.value, "netmp"), i1};
+  case TokenType::GT:
+    return {cc.Builder->CreateICmpSGT(LHS.value, RHS.value, "gttmp"), i1};
+  case TokenType::LT:
+    return {cc.Builder->CreateICmpSLT(LHS.value, RHS.value, "lttmp"), i1};
+  case TokenType::GTE:
+    return {cc.Builder->CreateICmpSGE(LHS.value, RHS.value, "gtetmp"), i1};
+  case TokenType::LTE:
+    return {cc.Builder->CreateICmpSLE(LHS.value, RHS.value, "ltetmp"), i1};
 
-    if (Type == TokenType::PLUS)
-      return {cc.Builder->CreateAdd(LHS.value, RHS.value, "addtmp"),
-              cc.Builder->CreateAdd(LHS.value, RHS.value, "addtmp")->getType()};
-    if (Type == TokenType::MINUS)
-      return {cc.Builder->CreateSub(LHS.value, RHS.value, "subtmp"),
-              cc.Builder->CreateSub(LHS.value, RHS.value, "subtmp")->getType()};
-    if (Type == TokenType::STAR)
-      return {cc.Builder->CreateMul(LHS.value, RHS.value, "multmp"),
-              cc.Builder->CreateMul(LHS.value, RHS.value, "multmp")->getType()};
-    if (Type == TokenType::SLASH)
-      return {
-          cc.Builder->CreateSDiv(LHS.value, RHS.value, "divtmp"),
-          cc.Builder->CreateSDiv(LHS.value, RHS.value, "divtmp")->getType()};
-  }
-
-  case TokenType::EQEQ: {
-    if (LHS.value->getType() != RHS.value->getType()) {
-      if (LHS.value->getType()->isIntegerTy() &&
-          RHS.value->getType()->isIntegerTy()) {
-        RHS.value =
-            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
-      } else {
-        throw std::runtime_error("Cannot compare incompatible types");
-      }
-    }
-
-    return {cc.Builder->CreateICmpEQ(LHS.value, RHS.value, "eqtmp"),
-            cc.Builder->CreateICmpEQ(LHS.value, RHS.value, "eqtmp")->getType()};
-  }
-
-  case TokenType::NOTEQ: {
-    if (LHS.value->getType() != RHS.value->getType()) {
-      if (LHS.value->getType()->isIntegerTy() &&
-          RHS.value->getType()->isIntegerTy()) {
-        RHS.value =
-            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
-      } else {
-        throw std::runtime_error("Cannot compare incompatible types");
-      }
-    }
-
-    return {cc.Builder->CreateICmpNE(LHS.value, RHS.value, "netmp"),
-            cc.Builder->CreateICmpNE(LHS.value, RHS.value, "netmp")->getType()};
-  }
   case TokenType::AND: {
-    // Convert LHS to i1 if needed
-    if (!LHS.value->getType()->isIntegerTy(1))
-      LHS.value = cc.Builder->CreateICmpNE(
-          LHS.value, llvm::ConstantInt::get(LHS.value->getType(), 0),
-          "lhsbool");
-
-    // Convert RHS to i1 if needed
-    if (!RHS.value->getType()->isIntegerTy(1))
-      RHS.value = cc.Builder->CreateICmpNE(
-          RHS.value, llvm::ConstantInt::get(RHS.value->getType(), 0),
-          "rhsbool");
-
-    return {cc.Builder->CreateAnd(LHS.value, RHS.value, "andtmp"),
-            cc.Builder->CreateAnd(LHS.value, RHS.value, "andtmp")->getType()};
-  }
-  case TokenType::GTE: {
-    if (LHS.value->getType() != RHS.value->getType()) {
-      if (LHS.value->getType()->isIntegerTy() &&
-          RHS.value->getType()->isIntegerTy()) {
-        RHS.value =
-            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
-      } else {
-        throw std::runtime_error("Cannot compare incompatible types");
-      }
-    }
-    return {
-        cc.Builder->CreateICmpSGE(LHS.value, RHS.value, "gtetmp"),
-        cc.Builder->CreateICmpSGE(LHS.value, RHS.value, "gtetmp")->getType()};
-  }
-
-  case TokenType::LTE: {
-    if (LHS.value->getType() != RHS.value->getType()) {
-      if (LHS.value->getType()->isIntegerTy() &&
-          RHS.value->getType()->isIntegerTy()) {
-        RHS.value =
-            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
-      } else {
-        throw std::runtime_error("Cannot compare incompatible types");
-      }
-    }
-    return {
-        cc.Builder->CreateICmpSLE(LHS.value, RHS.value, "ltetmp"),
-        cc.Builder->CreateICmpSLE(LHS.value, RHS.value, "ltetmp")->getType()};
-  }
-
-  case TokenType::GT: {
-    if (LHS.value->getType() != RHS.value->getType()) {
-      if (LHS.value->getType()->isIntegerTy() &&
-          RHS.value->getType()->isIntegerTy()) {
-        RHS.value =
-            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
-      } else {
-        throw std::runtime_error("Cannot compare incompatible types");
-      }
-    }
-    return {
-        cc.Builder->CreateICmpSGT(LHS.value, RHS.value, "gttmp"),
-        cc.Builder->CreateICmpSGT(LHS.value, RHS.value, "gttmp")->getType()};
-  }
-
-  case TokenType::LT: {
-    if (LHS.value->getType() != RHS.value->getType()) {
-      if (LHS.value->getType()->isIntegerTy() &&
-          RHS.value->getType()->isIntegerTy()) {
-        RHS.value =
-            cc.Builder->CreateIntCast(RHS.value, LHS.value->getType(), true);
-      } else {
-        throw std::runtime_error("Cannot compare incompatible types");
-      }
-    }
-    return {
-        cc.Builder->CreateICmpSLT(LHS.value, RHS.value, "lttmp"),
-        cc.Builder->CreateICmpSLT(LHS.value, RHS.value, "lttmp")->getType()};
+    // Logic operations always return i1
+    return {cc.Builder->CreateAnd(LHS.value, RHS.value, "andtmp"), i1};
   }
 
   default:
-    throw std::runtime_error("Unknown binary operator " +
-                             std::string(tokenName(Type)));
+    throw std::runtime_error("Unknown binary operator");
   }
 }
 
@@ -1003,7 +943,7 @@ CodegenResult CastNode::codegen(CodegenContext &cc) {
 CodegenResult StructCreateNode::codegen(CodegenContext &cc) {
   // 1. Create the opaque struct type
   llvm::StructType *TheStruct = llvm::StructType::create(*cc.TheContext, name);
-  
+
   std::vector<llvm::Type *> fieldTypes;
   fieldTypes.reserve(types.size());
 
@@ -1017,11 +957,47 @@ CodegenResult StructCreateNode::codegen(CodegenContext &cc) {
 
   TheStruct->setBody(fieldTypes);
 
-  cc.CrateStructWithIndex(name, TheStruct, indexs);
+  cc.CreateStructWithIndex(name, TheStruct, indexs);
 
   return {nullptr, nullptr};
 }
 
+CodegenResult FieldAccessNode::codegen(CodegenContext &cc) {
+  CodegenResult base = Base->codegen(cc);
+  if (!base.value)
+    return {nullptr, nullptr};
+
+  if (!base.type->isStructTy())
+    return {nullptr, nullptr};
+
+  auto *structTy = llvm::cast<llvm::StructType>(base.type);
+
+  auto it = cc.StructToIndex.find(structTy);
+  if (it == cc.StructToIndex.end())
+    return {nullptr, nullptr};
+
+  const auto &idx = it->second; // <-- you missed this
+
+  int fieldIndex = -1;
+  for (const auto &[fieldName, index] : idx) {
+    if (fieldName == name) {
+      fieldIndex = index;
+      break;
+    }
+  }
+
+  if (fieldIndex == -1)
+    return {nullptr, nullptr};
+
+  llvm::Value *ptr =
+      cc.Builder->CreateStructGEP(structTy, base.value, fieldIndex);
+
+  llvm::Type *fieldTy = structTy->getElementType(fieldIndex);
+
+  llvm::Value *val = cc.Builder->CreateLoad(fieldTy, ptr);
+
+  return {val, fieldTy};
+}
 
 // int main() {
 //   CodegenContext ctx("myprogram");
