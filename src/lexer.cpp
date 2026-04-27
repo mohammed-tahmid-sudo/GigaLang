@@ -2,8 +2,6 @@
 #include <cctype>
 #include <colors.h>
 #include <cstdio>
-#include <iomanip>
-#include <lexer.h>
 #include <string>
 #include <vector>
 
@@ -397,6 +395,10 @@ std::vector<Token> Lexer::lexer() {
       Consume();
       out.push_back(make(ANDPERCENT, "&"));
       break;
+    case '.':
+      Consume();
+      out.push_back(make(DOT, "."));
+      break;
     default:
       Consume();
       out.push_back(make(IDENTIFIER, std::string(1, c)));
@@ -512,56 +514,58 @@ const char *tokenName(TokenType t) {
     return "BREAK";
   case STRUCT:
     return "STRUCT";
+  case DOT:
+    return "DOT";
   default:
     return "UNKNOWN";
   }
 }
 
-int main() {
-  std::string src = R"(
-  @version "1.0";
-  @author "Tahmid";
+// int main() {
+//   std::string src = R"(
+//   @version "1.0";
+//   @author "Tahmid";
 
-  let x: Integer = 10;
-  let something:Integer**** = &x;
-  let y: Float = 3.14;
+//   let x: Integer = 10;
+//   let something:Integer**** = &x;
+//   let y: Float = 3.14;
 
-  let y: Integer[2] = [21, 12];
-  ley something: Char{32} = {'s', 'b', 'c', 'd'. 'e' , '\0'};
+//   let y: Integer[2] = [21, 12];
+//   ley something: Char{32} = {'s', 'b', 'c', 'd'. 'e' , '\0'};
 
-  func add(a: Integer, b: Integer) -> void {
-	return a + b;
-  }
+//   func add(a: Integer, b: Integer) -> void {
+// 	return a + b;
+//   }
 
-  if x >= 5 {
-	2 + 1;
-  } else {
-	2 + 1;
-  }
+//   if x >= 5 {
+// 	2 + 1;
+//   } else {
+// 	2 + 1;
+//   }
 
-  while (True) {
-	break;
-  }
+//   while (True) {
+// 	break;
+//   }
 
-  for i in 0..10 {
-	2 + 1;
-  }
+//   for i in 0..10 {
+// 	2 + 1;
+//   }
 
-  struct RandomStruct {
-	let a:Integer;
-  };
+//   struct RandomStruct {
+// 	let a:Integer;
+//   };
 
-  )";
+//   )";
 
-  // std::string src = R"(
-  // let x:Integer;
-  // )";
-  Lexer lexer(src);
-  auto program = lexer.lexer();
+//   // std::string src = R"(
+//   // let x:Integer;
+//   // )";
+//   Lexer lexer(src);
+//   auto program = lexer.lexer();
 
-  int stmtNo = 0;
-  for (const auto &stmt : program) {
-    std::cout << "  " << std::setw(12) << tokenName(stmt.type) << " : '"
-              << stmt.value << "'\n";
-  }
-}
+//   int stmtNo = 0;
+//   for (const auto &stmt : program) {
+//     std::cout << "  " << std::setw(12) << tokenName(stmt.type) << " : '"
+//               << stmt.value << "'\n";
+//   }
+// }
