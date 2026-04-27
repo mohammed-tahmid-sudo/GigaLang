@@ -36,7 +36,8 @@ llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc) {
   return nullptr;
 }
 
-llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
+llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc,
+                           bool IsVariableDeclare) {
   std::string t = type.value;
 
   for (char &c : t)
@@ -46,19 +47,21 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
     Token baseTypeToken;
     baseTypeToken.value = t.substr(0, t.size() - 7);
 
-    llvm::Type *baseType = GetTypeNonVoid(baseTypeToken, cc);
+    llvm::Type *baseType = GetTypeNonVoid(baseTypeToken, cc, true);
 
     return llvm::PointerType::get(baseType, 0);
   }
 
-  if (type.type == IDENTIFIER) {
-    auto it = cc.StructIndexList.find(type.value);
+  if (IsVariableDeclare) {
+    if (type.type == IDENTIFIER) {
+      auto it = cc.StructIndexList.find(type.value);
 
-    if (it == cc.StructIndexList.end()) {
-      throw std::runtime_error("Unknown struct type: " + type.value);
+      if (it == cc.StructIndexList.end()) {
+        throw std::runtime_error("Unknown struct type: " + type.value);
+      }
+
+      return it->second;
     }
-
-    return it->second;
   }
 
   if (t == "INTEGER") {
@@ -68,8 +71,7 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
     return llvm::Type::getFloatTy(*cc.TheContext);
 
   } else if (t == "STRING") {
-    return llvm::PointerType::get(
-        llvm::Type::getInt8Ty(*cc.TheContext), 0);
+    return llvm::PointerType::get(llvm::Type::getInt8Ty(*cc.TheContext), 0);
 
   } else if (t == "BOOLEAN") {
     return llvm::Type::getInt1Ty(*cc.TheContext);
@@ -88,13 +90,12 @@ llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
   if (type.value == "VOID")
     return llvm::Type::getVoidTy(*cc.TheContext);
 
-  return GetTypeNonVoid(type, cc);
+  return GetTypeNonVoid(type, cc, false);
 }
 
 CodegenResult CharNode::codegen(CodegenContext &cc) {
-  return {
-      llvm::ConstantInt::get(llvm::Type::getInt8Ty(*cc.TheContext), val, false),
-      llvm::Type::getInt8Ty(*cc.TheContext)};
+  return {llvm::ConstantInt::get(llvm::Type::getInt8Ty(*cc.TheContext), val),
+          llvm::Type::getInt8Ty(*cc.TheContext)};
 }
 
 CodegenResult IntegerNode::codegen(CodegenContext &cc) {
@@ -104,7 +105,6 @@ CodegenResult IntegerNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResult FloatNode::codegen(CodegenContext &cc) {
-
   return {
       llvm::ConstantInt::get(llvm::Type::getFloatTy(*cc.TheContext), val, true),
       llvm::Type::getFloatTy(*cc.TheContext)};
@@ -116,87 +116,36 @@ CodegenResult BooleanNode::codegen(CodegenContext &cc) {
       llvm::Type::getInt1Ty(*cc.TheContext)};
 }
 CodegenResult VariableDeclareNode::codegen(CodegenContext &cc) {
-  llvm::Type *elementType = GetTypeNonVoid(Type, cc);
-  llvm::AllocaInst *alloca = nullptr;
+  llvm::Type *VariableType = GetTypeNonVoid(Type, cc, true);
+  llvm::Value *allocainst = nullptr;
 
-  // =========================
-  // ARRAY CASE
-  // =========================
-  if (arraySize.has_value() && *arraySize > 1) {
-    llvm::ArrayType *arrayType = llvm::ArrayType::get(elementType, *arraySize);
+  if (arraySize) {
+    CodegenResult size = arraySize->codegen(cc);
 
-    alloca = cc.Builder->CreateAlloca(arrayType, nullptr, name);
-
-    if (val) {
-      ArrayLiteralNode *arrayNode = dynamic_cast<ArrayLiteralNode *>(val.get());
-
-      if (arrayNode) {
-        for (size_t i = 0; i < arrayNode->Elements.size(); ++i) {
-          CodegenResult elemRes = arrayNode->Elements[i]->codegen(cc);
-
-          llvm::Value *gep = cc.Builder->CreateGEP(
-              arrayType, alloca,
-              {cc.Builder->getInt32(0), cc.Builder->getInt32(i)}, "elemptr");
-
-          // IMPORTANT: LLVM 15+ safe rule
-          llvm::Value *storeVal = elemRes.value;
-
-          // only load if this node represents a memory address
-          if (elemRes.type && elemRes.value &&
-              elemRes.value->getType()->isPointerTy()) {
-            storeVal = cc.Builder->CreateLoad(elemRes.type, elemRes.value);
-          }
-
-          cc.Builder->CreateStore(storeVal, gep);
-        }
-      }
+    if (auto *ConstantSize = llvm::dyn_cast<llvm::ConstantInt>(size.value)) {
+      // Fixed-Size Array Path
+      uint64_t arraysize = ConstantSize->getZExtValue();
+      llvm::ArrayType *arraytype =
+          llvm::ArrayType::get(VariableType, arraysize);
+      allocainst = cc.Builder->CreateAlloca(arraytype, nullptr, name);
+      VariableType = arraytype;
     } else {
-      for (unsigned i = 0; i < *arraySize; ++i) {
-        llvm::Value *gep = cc.Builder->CreateGEP(
-            arrayType, alloca,
-            {cc.Builder->getInt32(0), cc.Builder->getInt32(i)});
-
-        llvm::Value *zero = llvm::Constant::getNullValue(elementType);
-
-        cc.Builder->CreateStore(zero, gep);
-      }
+      allocainst = cc.Builder->CreateAlloca(VariableType, size.value, name);
+    }
+  } else {
+    allocainst = cc.Builder->CreateAlloca(VariableType, nullptr, name);
+    if (val) {
+      CodegenResult value = val->codegen(cc);
+      cc.Builder->CreateStore(value.value, allocainst);
     }
   }
 
-  // =========================
-  // SCALAR CASE
-  // =========================
-  else {
-    alloca = cc.Builder->CreateAlloca(elementType, nullptr, name);
-
-    llvm::Value *initVal;
-
-    if (val) {
-      CodegenResult r = val->codegen(cc);
-
-      initVal = r.value;
-
-      // LLVM 15+ safe: only rely on pointer-ness, not element type extraction
-      if (r.value && r.value->getType()->isPointerTy()) {
-        initVal = cc.Builder->CreateLoad(r.type, r.value);
-      }
-    } else {
-      initVal = llvm::Constant::getNullValue(elementType);
-    }
-
-    cc.Builder->CreateStore(initVal, alloca);
-  }
-
-  cc.addVariable(name, alloca, alloca->getType(), elementType);
-
-  // variables are always LHS (pointer)
-  return {alloca, elementType};
+  return {allocainst, VariableType};
 }
 
 CodegenResult AssignmentNode::codegen(CodegenContext &cc) {
   llvm::Value *destAddr = nullptr;
 
-  // 1. If LHS is a variable, bypass its codegen() to get the raw address
   if (auto *varRef = dynamic_cast<VariableReferenceNode *>(lhs.get())) {
     destAddr = cc.lookup(varRef->Name);
   } else {
@@ -209,14 +158,12 @@ CodegenResult AssignmentNode::codegen(CodegenContext &cc) {
     return {nullptr, nullptr};
   }
 
-  // 3. Get the RHS result (the "what").
   CodegenResult rhsRes = rhs->codegen(cc);
   if (!rhsRes.value) {
     llvm::errs() << "Error in assignment: RHS expression returned null!\n";
     return {nullptr, nullptr};
   }
 
-  // 4. Perform the store: store <value>, <pointer>
   cc.Builder->CreateStore(rhsRes.value, destAddr);
 
   return rhsRes;
@@ -224,19 +171,15 @@ CodegenResult AssignmentNode::codegen(CodegenContext &cc) {
 
 CodegenResult ReturnNode::codegen(CodegenContext &cc) {
   if (expr) {
-    // 1. Get the address/value and the type
     CodegenResult retRes = expr->codegen(cc);
 
     if (!retRes.value)
       return {nullptr, nullptr};
 
-    // 2. Emit the LLVM return instruction using .val
     llvm::Value *retInst = cc.Builder->CreateRet(retRes.value);
 
-    // 3. Return the result of the expression
     return {retInst, retRes.type};
   } else {
-    // Void return
     llvm::Value *retInst = cc.Builder->CreateRetVoid();
     return {retInst, llvm::Type::getVoidTy(*cc.TheContext)};
   }
@@ -265,68 +208,48 @@ CodegenResult CompoundNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResult FunctionNode::codegen(CodegenContext &cc) {
-  std::vector<llvm::Type *> argTypes;
-  for (auto &a : args)
-    argTypes.push_back(std::get<1>(a)); // was a.second
+  llvm::Type *returntype = GetTypeVoid(ReturnType, cc);
+  std::vector<llvm::Type *> types;
+  for (auto &arg : args) {
+    types.push_back(arg.second);
+  }
 
-  llvm::Type *retTy = GetTypeVoid(ReturnType, cc);
-  auto *FT = llvm::FunctionType::get(retTy, argTypes, isVaridic);
-  auto *Fn = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, name,
-                                    cc.Module.get());
+  llvm::FunctionType *FT =
+      llvm::FunctionType::get(returntype, types, isVaridic);
+  llvm::Function *F = llvm::Function::Create(
+      FT, llvm::Function::ExternalLinkage, name, *cc.Module);
 
-  auto *BB = llvm::BasicBlock::Create(*cc.TheContext, "entry", Fn);
+  llvm::BasicBlock *BB = llvm::BasicBlock::Create(*cc.TheContext, "entry", F);
   cc.Builder->SetInsertPoint(BB);
+
   cc.pushScope();
 
-  unsigned i = 0;
-  for (auto &arg : Fn->args()) {
-    const auto &argName = std::get<0>(args[i]);      // was args[i].first
-    llvm::Type *declaredType = std::get<1>(args[i]); // was args[i].second
-    i++;
+  unsigned idx = 0;
+  for (auto &ir_arg : F->args()) {
+    std::string argName = args[idx].first;
+    llvm::Type *argType = args[idx].second;
+    ir_arg.setName(argName);
 
-    arg.setName(argName);
-    llvm::Type *argType = arg.getType();
-    auto *alloca = cc.Builder->CreateAlloca(argType, nullptr, argName);
-    cc.Builder->CreateStore(&arg, alloca);
-
-    llvm::Type *pointeeType = nullptr;
-    if (argType->isPointerTy()) {
-      auto &ctx = *cc.TheContext;
-      if (declaredType == llvm::PointerType::get(llvm::Type::getInt8Ty(ctx), 0))
-        pointeeType = llvm::Type::getInt8Ty(ctx);
-      else if (declaredType ==
-               llvm::PointerType::get(llvm::Type::getInt32Ty(ctx), 0))
-        pointeeType = llvm::Type::getInt32Ty(ctx);
-      else if (declaredType ==
-               llvm::PointerType::get(llvm::Type::getFloatTy(ctx), 0))
-        pointeeType = llvm::Type::getFloatTy(ctx);
-      else if (declaredType ==
-               llvm::PointerType::get(llvm::Type::getInt1Ty(ctx), 0))
-        pointeeType = llvm::Type::getInt1Ty(ctx);
-    }
-
-    cc.addVariable(argName, alloca, argType, pointeeType);
+    llvm::AllocaInst *alloca =
+        cc.Builder->CreateAlloca(argType, nullptr, argName);
+    cc.Builder->CreateStore(&ir_arg, alloca);
+    cc.addVariable(argName, alloca, alloca->getType(), argType);
+    idx++;
   }
 
-  CodegenResult retVal = content->codegen(cc);
+  CodegenResult contents = content->codegen(cc);
 
-  llvm::BasicBlock *currentBB = cc.Builder->GetInsertBlock();
-  if (!currentBB->getTerminator()) {
-    if (retTy->isVoidTy()) {
+  if (returntype->isVoidTy()) {
+    if (!BB->getTerminator())
       cc.Builder->CreateRetVoid();
-    } else {
-      if (!retVal.value) {
-        Fn->eraseFromParent();
-        cc.popScope();
-        return {nullptr, nullptr};
-      }
-      cc.Builder->CreateRet(retVal.value);
-    }
+  } else {
+    cc.Builder->CreateRet(contents.value);
   }
 
-  llvm::verifyFunction(*Fn);
   cc.popScope();
-  return {Fn, retTy};
+
+  llvm::verifyFunction(*F);
+  return {F, returntype};
 }
 
 CodegenResult VariableReferenceNode::codegen(CodegenContext &cc) {
@@ -1030,77 +953,12 @@ CodegenResult FieldAccessNode::codegen(CodegenContext &cc) {
   return {fieldPtr, fieldTy};
 }
 
-// int main() {
-//   CodegenContext ctx("myprogram");
-//   ctx.pushScope(); // Start Global Scope
+int main() {
+  CodegenContext ctx("myprogram");
+  ctx.pushScope(); // Start Global Scope
 
-//   // --- First compound for "random" function ---
-//   std::vector<std::unique_ptr<ast>> vals;
+  ctx.Module->print(llvm::errs(), nullptr);
 
-//   vals.push_back(std::make_unique<VariableDeclareNode>(
-//       "val2", std::make_unique<VariableReferenceNode>("val1"),
-//       Token{TokenType::TYPES, "INTEGER"}));
-
-//   vals.push_back(std::make_unique<WhileNode>(
-//       std::make_unique<VariableReferenceNode>("val2"),
-//       std::make_unique<ContinueNode>()));
-
-//   vals.push_back(std::make_unique<IfNode>(
-//       std::make_unique<VariableReferenceNode>("val2"),
-//       std::make_unique<IntegerNode>(21),
-//       std::make_unique<IntegerNode>(32)));
-
-//   vals.push_back(
-//       std::make_unique<ReturnNode>(std::make_unique<BinaryOperationNode>(
-//           TokenType::GTE,
-//           std::make_unique<VariableReferenceNode>("val1"),
-//           std::make_unique<VariableReferenceNode>("val2"))));
-
-//   auto compoundRandom = std::make_unique<CompoundNode>(std::move(vals));
-
-//   std::vector<std::pair<std::string, llvm::Type *>> typeRandom = {
-//       {"val1", llvm::Type::getInt32Ty(*ctx.TheContext)}};
-
-//   auto RandomFunction = std::make_unique<FunctionNode>(
-//       "random", typeRandom, std::move(compoundRandom),
-//       Token{TokenType::TYPES, "INTEGER"});
-
-//   // --- Second compound for "main" function ---
-//   std::vector<std::unique_ptr<ast>> anothervals;
-
-//   anothervals.push_back(std::make_unique<VariableDeclareNode>(
-//       "val1", std::make_unique<IntegerNode>(21),
-//       Token{TokenType::TYPES, "INTEGER"}));
-
-//   // Prepare arguments vector separately to move unique_ptrs
-//   std::vector<std::unique_ptr<ast>> callArgs;
-//   callArgs.push_back(std::make_unique<VariableReferenceNode>("val1"));
-
-//   anothervals.push_back(
-//       std::make_unique<CallNode>("random", std::move(callArgs)));
-
-//   std::vector<std::unique_ptr<ast>> elements;
-//   elements.push_back(std::make_unique<CharNode>('a'));
-//   elements.push_back(std::make_unique<CharNode>('b'));
-//   elements.push_back(std::make_unique<CharNode>('c'));
-
-//   anothervals.push_back(std::make_unique<ArrayLiteralNode>(
-//       llvm::Type::getInt32Ty(*ctx.TheContext), std::move(elements)));
-
-//   auto anotherCompound =
-//   std::make_unique<CompoundNode>(std::move(anothervals));
-
-//   auto Function = std::make_unique<FunctionNode>(
-//       "main", typeRandom, std::move(anotherCompound),
-//       Token{TokenType::TYPES, "INTEGER"});
-
-//   // --- Codegen ---
-
-//   RandomFunction->codegen(ctx);
-//   Function->codegen(ctx);
-
-//   ctx.Module->print(llvm::errs(), nullptr);
-
-//   ctx.popScope(); // End Global Scope
-//   return 0;
-// }
+  ctx.popScope(); // End Global Scope
+  return 0;
+}

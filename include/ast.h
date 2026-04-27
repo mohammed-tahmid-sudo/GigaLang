@@ -90,7 +90,8 @@ struct CodegenContext {
 
 llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc);
 llvm::Type *GetTypeVoid(Token type, CodegenContext &cc);
-llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc);
+llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc,
+                           bool IsVariableDeclare = false);
 
 struct ast {
   virtual ~ast() = default;
@@ -137,15 +138,14 @@ struct BooleanNode : ast {
 struct VariableDeclareNode : ast {
   std::string name;
   Token Type;
-  std::unique_ptr<ast> val;          // can be single value or ArrayLiteralNode
-  std::optional<unsigned> arraySize; // new: size if it's an array
+  std::unique_ptr<ast> val;
+  std::unique_ptr<ast> arraySize;
 
   VariableDeclareNode(const std::string &n, std::unique_ptr<ast> v, Token t,
-                      std::optional<unsigned> size = 1)
-      : name(n), val(std::move(v)), Type(t), arraySize(size) {}
+                      std::unique_ptr<ast> size)
+      : name(n), val(std::move(v)), Type(t), arraySize(std::move(size)) {}
 
   std::string repr() override;
-
   CodegenResult codegen(CodegenContext &cc) override;
 };
 
@@ -173,13 +173,13 @@ struct CompoundNode : ast {
 
 struct FunctionNode : ast {
   std::string name;
-  std::vector<std::tuple<std::string, llvm::Type *>> args;
+  std::vector<std::pair<std::string, llvm::Type *>> args;
   bool isVaridic;
   std::unique_ptr<ast> content;
   Token ReturnType;
 
   FunctionNode(const std::string &s,
-               std::vector<std::tuple<std::string, llvm::Type *>> ars,
+               std::vector<std::pair<std::string, llvm::Type *>> ars,
                std::unique_ptr<ast> cntnt, Token RetType, bool varidic)
       : name(s), args(ars), content(std::move(cntnt)), ReturnType(RetType),
         isVaridic(varidic) {}
