@@ -22,7 +22,11 @@ std::string CharNode::repr() {
 
 // std::string StringNode::repr() { return "StringNode(" + val + ")"; }
 
-std::string VariableDeclareNode::repr() { return "VariableDeclareNode"; }
+std::string VariableDeclareNode::repr() {
+  return "VariableDeclareNode(name=" + name +
+         ", value=" + (val ? val->repr() : "null") + ", Type=" + Type.value +
+         ", Size=" + std::to_string(arraySize.value_or(1)) + ")";
+}
 
 std::string AssignmentNode::repr() {
   // return "AssignmentNode(name=" + name + ", NewValue=" + val->repr() + ")";
