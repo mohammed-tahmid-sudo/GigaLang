@@ -233,11 +233,11 @@ struct ForNode : ast {
 };
 
 struct ArrayLiteralNode : ast {
-  Token ElementType;
+  // Token ElementType;
   std::vector<std::unique_ptr<ast>> Elements;
 
-  ArrayLiteralNode(Token elemType, std::vector<std::unique_ptr<ast>> elements)
-      : ElementType(elemType), Elements(std::move(elements)) {}
+  ArrayLiteralNode(std::vector<std::unique_ptr<ast>> elements)
+      : Elements(std::move(elements)) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
@@ -252,17 +252,6 @@ struct ArrayAccessNode : ast {
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
-struct ArrayAssignNode : ast {
-  std::string name;           // array name
-  std::unique_ptr<ast> index; // index expression
-  std::unique_ptr<ast> value; // value to assign
-
-  ArrayAssignNode(const std::string &n, std::unique_ptr<ast> idx,
-                  std::unique_ptr<ast> val)
-      : name(n), index(std::move(idx)), value(std::move(val)) {}
-
-  CodegenResults codegen(CodegenContext &cc) override;
-};
 
 struct SizeOfNode : ast {
   std::unique_ptr<ast> val;
@@ -277,7 +266,6 @@ struct SyscallNode : ast {
   std::vector<std::unique_ptr<ast>> args;
   SyscallNode(int syscall_name, std::vector<std::unique_ptr<ast>> syscall_args)
       : name(syscall_name), args(std::move(syscall_args)) {}
-  std::string repr() override { return "SYSCALLNODE"; }
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
@@ -289,17 +277,6 @@ struct PointerReferenceNode : ast {
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
-struct PointerDeReferenceAssingNode : ast {
-  std::string name;
-  std::unique_ptr<ast> val;
-  std::unique_ptr<ast> index;
-
-  PointerDeReferenceAssingNode(const std::string &n, std::unique_ptr<ast> v,
-                               std::unique_ptr<ast> i)
-      : name(n), val(std::move(v)), index(std::move(i)) {}
-
-  CodegenResults codegen(CodegenContext &cc) override;
-};
 
 struct DeReferenceNode : ast {
   std::string name;
@@ -307,7 +284,6 @@ struct DeReferenceNode : ast {
 
   DeReferenceNode(const std::string &n, std::unique_ptr<ast> idx)
       : name(n), index(std::move(idx)) {}
-  std::string repr() override { return "PointerDeReferenceNode"; }
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
@@ -318,7 +294,6 @@ struct CastNode : ast {
 
   CastNode(std::unique_ptr<ast> V, llvm::Type *type)
       : Value(std::move(V)), targetType(type) {}
-  std::string repr() override { return "CastNode"; }
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
@@ -329,7 +304,6 @@ struct StructCreateNode : ast {
   StructCreateNode(const std::string &s,
                    std::unordered_map<std::string, llvm::Type *> tps)
       : name(s), types(std::move(tps)) {}
-  std::string repr() override { return "CastNode"; }
 
   CodegenResults codegen(CodegenContext &cc) override;
 };

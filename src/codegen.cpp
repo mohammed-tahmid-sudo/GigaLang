@@ -6,7 +6,10 @@
 #include <ast.h>
 #include <cctype>
 #include <iostream>
+#include <llvm-18/llvm/ADT/ArrayRef.h>
+#include <llvm-18/llvm/ADT/STLExtras.h>
 #include <llvm-18/llvm/IR/BasicBlock.h>
+#include <llvm-18/llvm/IR/Constant.h>
 #include <llvm-18/llvm/IR/Constants.h>
 #include <llvm-18/llvm/IR/DerivedTypes.h>
 #include <llvm-18/llvm/IR/DiagnosticHandler.h>
@@ -18,6 +21,7 @@
 #include <llvm-18/llvm/IR/Type.h>
 #include <llvm-18/llvm/IR/Value.h>
 #include <llvm-18/llvm/IR/Verifier.h>
+#include <llvm-18/llvm/Support/Casting.h>
 #include <llvm-18/llvm/Support/TypeName.h>
 #include <llvm-18/llvm/Support/raw_ostream.h>
 #include <memory>
@@ -603,146 +607,51 @@ CodegenResults ForNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults ArrayLiteralNode::codegen(CodegenContext &cc) {
-	llvm::Type* 
-}
-
-llvm::Value *ArrayAccessNode::codegen(CodegenContext &cc) {
-  llvm::Value *arrayPtr = cc.lookup(arrayName);
-
-  if (!arrayPtr)
-    throw std::runtime_error("Unknown array: " + arrayName);
-
-  llvm::Type *arrayType = nullptr;
-
-  if (auto *allocaInst = llvm::dyn_cast<llvm::AllocaInst>(arrayPtr)) {
-    arrayType = allocaInst->getAllocatedType();
-  } else if (auto *globalVar = llvm::dyn_cast<llvm::GlobalVariable>(arrayPtr)) {
-    arrayType = globalVar->getValueType();
-  } else {
-    throw std::runtime_error(arrayName + " is not a valid array variable");
+  if (Elements.empty()) {
+    auto *EmptyTy =
+        llvm::ArrayType::get(llvm::Type::getInt8Ty(*cc.TheContext), 0);
+    return {llvm::ConstantArray::get(EmptyTy, {})};
   }
 
-  if (!arrayType->isArrayTy())
-    throw std::runtime_error(arrayName + " is not an array");
+  std::vector<llvm::Constant *> ConstantValues;
+  for (auto &x : Elements) {
+    auto results = x->codegen(cc);
+    auto *C = llvm::dyn_cast<llvm::Constant>(results.ActualValue);
 
-  llvm::IRBuilder<> &builder = *cc.Builder;
-
-  llvm::Value *indexVal = indexExpr->codegen(cc);
-  if (!indexVal->getType()->isIntegerTy())
-    throw std::runtime_error("Array index must be integer");
-
-  if (indexVal->getType() != builder.getInt32Ty())
-    indexVal = builder.CreateIntCast(indexVal, builder.getInt32Ty(), true);
-
-  llvm::Value *elemPtr =
-      builder.CreateGEP(arrayType, arrayPtr, {builder.getInt32(0), indexVal},
-                        arrayName + "_elem_ptr");
-
-  llvm::Type *elementType = arrayType->getArrayElementType();
-
-  // Important: return the *loaded value*, not just the pointer
-  return builder.CreateLoad(elementType, elemPtr, arrayName + "_elem");
-}
-
-llvm::Value *ArrayAssignNode::codegen(CodegenContext &cc) {
-
-  llvm::Value *arrayVal = cc.lookup(name);
-  if (!arrayVal)
-    throw std::runtime_error("Undefined array variable: " + name);
-
-  llvm::AllocaInst *alloca = llvm::dyn_cast<llvm::AllocaInst>(arrayVal);
-  if (!alloca)
-    throw std::runtime_error(name + " is not stack allocated");
-
-  llvm::Type *arrayType = alloca->getAllocatedType();
-  if (!arrayType->isArrayTy())
-    throw std::runtime_error(name + " is not an array");
-
-  llvm::Value *index = this->index->codegen(cc);
-  if (!index)
-    throw std::runtime_error("Invalid index expression in array assignment");
-
-  if (!index->getType()->isIntegerTy())
-    throw std::runtime_error("Array index must be integer");
-
-  if (index->getType() != llvm::Type::getInt32Ty(*cc.TheContext))
-    index = cc.Builder->CreateIntCast(
-        index, llvm::Type::getInt32Ty(*cc.TheContext), true, "idxcast");
-
-  llvm::Value *zero =
-      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*cc.TheContext), 0);
-
-  llvm::Value *elemPtr = cc.Builder->CreateGEP(arrayType, alloca, {zero, index},
-                                               name + "_elem_ptr");
-
-  llvm::Value *val = value->codegen(cc);
-  if (!val)
-    throw std::runtime_error("Invalid RHS in array assignment");
-
-  llvm::Type *elemType = arrayType->getArrayElementType();
-  if (val->getType() != elemType)
-    throw std::runtime_error("Type mismatch in array assignment");
-
-  cc.Builder->CreateStore(val, elemPtr);
-
-  return val;
-}
-
-llvm::Value *SizeOfNode::codegen(CodegenContext &cc) {
-  if (!val) {
-    throw std::runtime_error("INVALUD VALUE AT SIZEOF NODE");
-    return nullptr;
+    if (!C) {
+      throw std::runtime_error("SOMETHING IS WRONG AT ARRAY LITERLANODE");
+    }
+    ConstantValues.push_back(C);
   }
-  // uint32_t type =
-  //     cc.Module->getDataLayout().getTypeAllocSize(val->codegen(cc)->getType());
 
-  return llvm::ConstantExpr::getSizeOf(val->codegen(cc)->getType());
-}
+  // Use the first element's type as the master type
+  llvm::Type *ElementType = ConstantValues[0]->getType();
 
-llvm::Value *castToI64(llvm::Value *v, CodegenContext &cc,
-                       const std::string &varName = "") {
-  llvm::Type *i64Ty = llvm::Type::getInt64Ty(*cc.TheContext);
-
-  // Already i64
-  if (v->getType()->isIntegerTy(64))
-    return v;
-
-  // Single integer smaller than 64-bit → extend
-  if (v->getType()->isIntegerTy())
-    return cc.Builder->CreateZExt(v, i64Ty);
-
-  // Pointer or array stored in context
-  if (!varName.empty()) {
-    llvm::Type *type = cc.lookupType(varName);
-    llvm::Type *elemType = cc.lookupElementType(varName);
-
-    if (type && elemType) {
-      if (elemType->isIntegerTy(8)) {
-        // Arrays or pointers of i8 → cast to integer
-        if (type->isArrayTy())
-          v = cc.Builder->CreateBitCast(
-              v, llvm::PointerType::get(llvm::Type::getInt8Ty(*cc.TheContext),
-                                        false));
-        return cc.Builder->CreatePtrToInt(v, i64Ty);
-      }
+  // OPTIONAL: Verify all elements match the first element's type
+  for (auto *V : ConstantValues) {
+    if (V->getType() != ElementType) {
+      throw std::runtime_error("SOMETHING IS WRONG AT ARRAY LITERLANODE");
     }
   }
 
-  // Float → integer
-  if (v->getType()->isFloatingPointTy())
-    return cc.Builder->CreateFPToUI(v, i64Ty);
-
-  llvm_unreachable("Unsupported type for syscall argument");
+  llvm::ArrayType *ATy =
+      llvm::ArrayType::get(ElementType, ConstantValues.size());
+  return {llvm::ConstantArray::get(ATy, ConstantValues), nullptr, ATy, nullptr};
 }
 
-llvm::Value *SyscallNode::codegen(CodegenContext &cc) {
+CodegenResults SizeOfNode::codegen(CodegenContext &cc) {
+  std::cerr << "SIZEOF DOES NOT WORK FOR NOT" << std::endl;
+  return {nullptr, nullptr, nullptr, nullptr};
+}
+
+CodegenResults SyscallNode::codegen(CodegenContext &cc) {
   llvm::Type *i64Ty = llvm::Type::getInt64Ty(*cc.TheContext);
   std::vector<llvm::Value *> llvm_args;
 
   // Generate code and cast each arg to i64
   for (auto &arg : args) {
-    llvm::Value *v = arg->codegen(cc);
-    llvm_args.push_back(v);
+    CodegenResults v = arg->codegen(cc);
+    llvm_args.push_back(v.ActualValue);
   }
 
   // Zero-pad to 6 arguments
@@ -764,67 +673,49 @@ llvm::Value *SyscallNode::codegen(CodegenContext &cc) {
       true // hasSideEffects
   );
 
-  return cc.Builder->CreateCall(asmSyscall, final_args);
+  return {
+      cc.Builder->CreateCall(asmSyscall, final_args),
+      nullptr,
+      nullptr,
+      nullptr,
+  };
 }
 
-llvm::Value *PointerReferenceNode::codegen(CodegenContext &cc) {
-  llvm::Value *var = cc.lookup(name);
+CodegenResults PointerReferenceNode::codegen(CodegenContext &cc) {
+  VWT var = cc.lookupVariable(name);
 
-  if (!var) {
+  if (!var.val) {
     throw std::runtime_error("CANNOT FIND VALUE " + name);
   }
-  return var;
+  return {var.val, var.val, var.type, var.elementType};
 }
 
-llvm::Value *PointerDeReferenceAssingNode::codegen(CodegenContext &cc) {
-  llvm::Value *arrayVal = cc.lookup(name);
-  if (!arrayVal)
-    throw std::runtime_error("Unknown pointer array: " + name);
-
-  llvm::Type *ptrType = cc.lookupType(name);
-  llvm::Type *elemType = cc.lookupElementType(name);
-
-  llvm::Value *actualPtr =
-      cc.Builder->CreateLoad(ptrType, arrayVal, name + "_ptr");
-
-  llvm::Value *idx = index->codegen(cc);
-  llvm::Value *elemPtr =
-      cc.Builder->CreateGEP(elemType, actualPtr, {idx}, "ptr_elem");
-
-  llvm::Value *value = val->codegen(cc);
-  return cc.Builder->CreateStore(value, elemPtr);
-}
-
-llvm::Value *DeReferenceNode::codegen(CodegenContext &cc) {
-  llvm::Value *var = cc.lookup(name);
+CodegenResults DeReferenceNode::codegen(CodegenContext &cc) {
+  VWT var = cc.lookupVariable(name);
   if (!var) {
     llvm::errs() << "Unknown variable '" << name << "'\n";
-    return nullptr;
+    return {nullptr;
   }
-  llvm::Type *ptrType = cc.lookupType(name);
 
-  if (nullptr == ptrType) {
+  if (nullptr == var.type) {
     throw std::runtime_error("NullPointer, Baby");
   }
-  if (!ptrType || !ptrType->isPointerTy()) {
+  if (!var.type || !var.type->isPointerTy()) {
     llvm::errs() << "'" << name << "' is not a pointer\n";
     return nullptr;
   }
 
-  llvm::Value *ptrVal = cc.Builder->CreateLoad(ptrType, var, name + "_ptr");
-  llvm::Type *elementType = cc.lookupElementType(name);
-
-  llvm::errs() << "DeReferenceNode '" << name << "' elementType: ";
-  elementType->print(llvm::errs());
-  llvm::errs() << "\n";
+  llvm::Value *ptrVal =
+      cc.Builder->CreateLoad(var.type, var.val, name + "_ptr");
 
   // If there's an index, apply GEP before loading
   if (index) {
-    llvm::Value *idx = index->codegen(cc);
-    ptrVal = cc.Builder->CreateGEP(elementType, ptrVal, {idx}, "ptr_elem");
+    CodegenResults idx = index->codegen(cc);
+    ptrVal = cc.Builder->CreateGEP(var.elementType, ptrVal, {idx.ActualValue},
+                                   "ptr_elem");
   }
 
-  return cc.Builder->CreateLoad(elementType, ptrVal, "deref_" + name);
+  return cc.Builder->CreateLoad(var.elementType, ptrVal, "deref_" + name);
 }
 
 llvm::Value *castValue(llvm::IRBuilder<> &builder, llvm::Value *val,
