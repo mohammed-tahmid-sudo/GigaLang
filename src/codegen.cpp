@@ -2,7 +2,6 @@
 #include "lexer.h"
 #include "llvm/IR/InlineAsm.h"
 #include <alloca.h>
-#include <array>
 #include <ast.h>
 #include <cctype>
 #include <iostream>
@@ -27,7 +26,6 @@
 #include <memory>
 #include <stdexcept>
 #include <strings.h>
-#include <utility>
 #include <vector>
 
 llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc) {
@@ -692,9 +690,9 @@ CodegenResults PointerReferenceNode::codegen(CodegenContext &cc) {
 
 CodegenResults DeReferenceNode::codegen(CodegenContext &cc) {
   VWT var = cc.lookupVariable(name);
-  if (!var) {
+  if (!var.val) {
     llvm::errs() << "Unknown variable '" << name << "'\n";
-    return {nullptr;
+    return {nullptr, nullptr, nullptr, nullptr};
   }
 
   if (nullptr == var.type) {
@@ -702,7 +700,7 @@ CodegenResults DeReferenceNode::codegen(CodegenContext &cc) {
   }
   if (!var.type || !var.type->isPointerTy()) {
     llvm::errs() << "'" << name << "' is not a pointer\n";
-    return nullptr;
+    return {nullptr, nullptr, nullptr, nullptr};
   }
 
   llvm::Value *ptrVal =
@@ -714,8 +712,8 @@ CodegenResults DeReferenceNode::codegen(CodegenContext &cc) {
     ptrVal = cc.Builder->CreateGEP(var.elementType, ptrVal, {idx.ActualValue},
                                    "ptr_elem");
   }
-
-  return cc.Builder->CreateLoad(var.elementType, ptrVal, "deref_" + name);
+  return {cc.Builder->CreateLoad(var.elementType, ptrVal, "deref_" + name),
+          var.val, var.type, var.elementType};
 }
 
 llvm::Value *castValue(llvm::IRBuilder<> &builder, llvm::Value *val,
@@ -764,12 +762,13 @@ llvm::Value *castValue(llvm::IRBuilder<> &builder, llvm::Value *val,
   return nullptr;
 }
 
-llvm::Value *CastNode::codegen(CodegenContext &cc) {
-  llvm::Value *v = Value->codegen(cc);
-  return castValue(*cc.Builder, v, targetType, true);
+CodegenResults CastNode::codegen(CodegenContext &cc) {
+  CodegenResults v = Value->codegen(cc);
+  return {castValue(*cc.Builder, v.ActualValue, targetType, true), nullptr,
+          v.ActualType, v.ActualTypeButNotThePointer};
 }
 
-llvm::Value *StructCreateNode::codegen(CodegenContext &cc) {
+CodegenResults StructCreateNode::codegen(CodegenContext &cc) {
   llvm::StructType *TheStruct = llvm::StructType::create(*cc.TheContext, name);
   std::vector<llvm::Type *> fieldTypes;
   fieldTypes.reserve(types.size());
@@ -788,8 +787,10 @@ llvm::Value *StructCreateNode::codegen(CodegenContext &cc) {
 
   cc.StructIndexList.emplace(name, std::move(idx));
 
-  return nullptr;
+  return {nullptr, nullptr, nullptr, nullptr};
 }
+
+
 
 // int main() {
 //   CodegenContext ctx("myprogram");

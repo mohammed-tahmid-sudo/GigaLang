@@ -252,7 +252,6 @@ struct ArrayAccessNode : ast {
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
-
 struct SizeOfNode : ast {
   std::unique_ptr<ast> val;
 
@@ -276,7 +275,6 @@ struct PointerReferenceNode : ast {
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
-
 
 struct DeReferenceNode : ast {
   std::string name;
@@ -304,6 +302,16 @@ struct StructCreateNode : ast {
   StructCreateNode(const std::string &s,
                    std::unordered_map<std::string, llvm::Type *> tps)
       : name(s), types(std::move(tps)) {}
+
+  CodegenResults codegen(CodegenContext &cc) override;
+};
+
+struct FieldAccessNode : ast {
+  std::unique_ptr<ast> base;
+  std::string name;
+
+  FieldAccessNode(std::unique_ptr<ast> Base, const std::string &s)
+      : base(std::move(Base)), name(s) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
