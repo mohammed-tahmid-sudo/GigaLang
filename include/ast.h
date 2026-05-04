@@ -25,21 +25,15 @@ struct VWT {
   llvm::Type *elementType;
 };
 
-struct StructIndex {
-  llvm::StructType *TheStruct;
-  std::vector<std::pair<std::string, size_t>> index;
-  StructIndex(llvm::StructType *thestruct,
-              std::vector<std::pair<std::string, size_t>> idx)
-      : TheStruct(thestruct), index(idx) {}
-};
-
 struct CodegenContext {
   std::unique_ptr<llvm::LLVMContext> TheContext;
   std::unique_ptr<llvm::IRBuilder<>> Builder;
   std::unique_ptr<llvm::Module> Module;
   std::vector<std::unordered_map<std::string, VWT>> NamedValuesStack;
-  std::unordered_map<std::string, std::unique_ptr<StructIndex>> StructIndexList;
-
+  std::unordered_map<std::string, llvm::StructType *> StringToStructs;
+  std::unordered_map<llvm::StructType *,
+                     std::vector<std::pair<std::string, size_t>>>
+      StructsToPair;
   llvm::BasicBlock *BreakBB = nullptr;
   llvm::BasicBlock *ContinueBB = nullptr;
 
@@ -50,6 +44,13 @@ struct CodegenContext {
   void addVariable(const std::string &name, llvm::Value *value,
                    llvm::Type *Type, llvm::Type *elemenType) {
     NamedValuesStack.back()[name] = VWT{value, Type, elemenType};
+  }
+
+  void addStruct(const std::string &name, llvm::StructType *Type,
+                 std::vector<std::pair<std::string, size_t>> Pairs) {
+    StringToStructs[name] = Type;
+    StructsToPair[Type] = Pairs;
+    return;
   }
 
   VWT lookupVariable(const std::string &name) {

@@ -4,6 +4,7 @@
 #include <alloca.h>
 #include <ast.h>
 #include <cctype>
+#include <cstddef>
 #include <iostream>
 #include <llvm-18/llvm/ADT/ArrayRef.h>
 #include <llvm-18/llvm/ADT/STLExtras.h>
@@ -55,8 +56,8 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
   }
 
   if (type.type == IDENTIFIER) {
-    auto it = *cc.StructIndexList.find(type.value)->second;
-    return it.TheStruct;
+    auto it = *cc.StringToStructs.find(type.value);
+    return it.second;
   }
 
   if (t == "INTEGER") {
@@ -253,6 +254,13 @@ CodegenResults FunctionNode::codegen(CodegenContext &cc) {
 
 CodegenResults VariableReferenceNode::codegen(CodegenContext &cc) {
   VWT ptr = cc.lookupVariable(Name); // pointer
+
+  // if (!ptr.val){
+  // auto it = cc.StringToStructs.find(Name);
+  // if (it!= cc.StringToStructs.end()) {
+  // ptr.type = it->second;
+  // }
+  // }
 
   return {cc.Builder->CreateLoad(ptr.type, ptr.val, Name), ptr.val, ptr.type,
           ptr.elementType};
@@ -642,6 +650,18 @@ CodegenResults SizeOfNode::codegen(CodegenContext &cc) {
   return {nullptr, nullptr, nullptr, nullptr};
 }
 
+CodegenResults ArrayAccessNode::codegen(CodegenContext &cc) {
+  VWT array = cc.lookupVariable(arrayName);
+  CodegenResults expr = indexExpr->codegen(cc);
+  llvm::Value *indicies[] = {
+      llvm::ConstantInt::get(cc.Builder->getInt32Ty(), 0), expr.ActualValue};
+  llvm::Value *elementPtr =
+      cc.Builder->CreateInBoundsGEP(array.type, array.val, indicies);
+
+  return {cc.Builder->CreateLoad(array.elementType, elementPtr), elementPtr,
+          array.type, array.elementType};
+}
+
 CodegenResults SyscallNode::codegen(CodegenContext &cc) {
   llvm::Type *i64Ty = llvm::Type::getInt64Ty(*cc.TheContext);
   std::vector<llvm::Value *> llvm_args;
@@ -783,14 +803,41 @@ CodegenResults StructCreateNode::codegen(CodegenContext &cc) {
 
   TheStruct->setBody(fieldTypes);
 
-  auto idx = std::make_unique<StructIndex>(TheStruct, indexs);
+  // auto idx = std::make_unique<StructIndex>(TheStruct, indexs);
 
-  cc.StructIndexList.emplace(name, std::move(idx));
+  // cc.StructIndexList.emplace(name, std::move(idx));
+  cc.addStruct(name, TheStruct, indexs);
 
   return {nullptr, nullptr, nullptr, nullptr};
 }
 
+CodegenResults FieldAccessNode::codegen(CodegenContext &cc) {
+  CodegenResults BASE = base->codegen(cc);
+  std::vector<std::pair<std::string, size_t>> PairList;
 
+  if (auto ST = llvm::dyn_cast<llvm::StructType>(BASE.ActualType)) {
+    auto it = cc.StructsToPair.find(ST);
+
+    if (it != cc.StructsToPair.end()) {
+      PairList = it->second;
+
+    } else {
+      throw std::runtime_error("Unable To Fine Value");
+    }
+  }
+
+  size_t index = -1;
+  for (auto x : PairList) {
+    if (x.first == name) {
+      index = x.second;
+      break;
+    }
+  }
+
+  return {cc.Builder->CreateStructGEP(BASE.ActualType,
+                                      BASE.ActualValueButAsAPointer, index),
+          BASE.ActualValue, BASE.ActualType, BASE.ActualTypeButNotThePointer};
+}
 
 // int main() {
 //   CodegenContext ctx("myprogram");
