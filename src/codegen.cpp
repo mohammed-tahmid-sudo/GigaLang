@@ -132,7 +132,7 @@ CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
     }
   }
 
-  cc.addVariable(name, alloca, finalType->getPointerTo(), finalType);
+  cc.addVariable(name, alloca, finalType, finalType->getPointerTo());
   return {
       cc.Builder->CreateLoad(finalType, alloca), // ActualValue (the data)
       alloca,                    // ActualValueButAsAPointer (the address)

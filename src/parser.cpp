@@ -117,8 +117,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
         static_cast<CharNode *>(outputs.back().get())->val != '\0') {
       outputs.push_back(std::make_unique<CharNode>(0));
     }
-    return std::make_unique<ArrayLiteralNode>(
-        std::move(outputs));
+    return std::make_unique<ArrayLiteralNode>(std::move(outputs));
   }
 
   else if (Peek().type == TokenType::LPAREN) {
@@ -378,14 +377,21 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
     throw std::runtime_error("Expected TYPES or IDENTIFIER");
   }
 
-  unsigned size = 1;
-
+  // unsigned size = 0;
+  std::optional<unsigned> size;
   if (Peek().type == TokenType::LBRACKET) {
     Consume();
     Token somerandomval = Expect(TokenType::INT_LITERAL);
-    Expect(RBRACKET);
-    size += std::stoi(somerandomval.value) - 1;
+    Expect(TokenType::RBRACKET);
+    size = std::stoi(somerandomval.value) - 1;
   }
+
+  // if (Peek().type == TokenType::LBRACKET) {
+  //   Consume();
+  //   Token somerandomval = Expect(TokenType::INT_LITERAL);
+  //   Expect(RBRACKET);
+  //   size += std::stoi(somerandomval.value) - 1;
+  // }
 
   std::unique_ptr<ast> val = nullptr;
   if (Peek().type == TokenType::EQ) {
@@ -397,7 +403,6 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
         diag.error(loc(),
                    "array initializer has " +
                        std::to_string(arrNode->Elements.size()) +
-                       " elements but declared size is " + std::to_string(size),
                    "reduce initializer or increase declared size: let x:" +
                        type.value + "[" +
                        std::to_string(arrNode->Elements.size()) + "]");
@@ -697,7 +702,6 @@ int main() {
   // --- Source Code to Compile ---
   std::string src = R"(
 func main() -> Integer {
-
 	let x: Integer = 10;
 	let y: Integer = 20;
 	let sum: Integer = x + y;
