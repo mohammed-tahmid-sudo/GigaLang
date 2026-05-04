@@ -13,6 +13,7 @@
 #include <llvm-18/llvm/IR/Constants.h>
 #include <llvm-18/llvm/IR/DerivedTypes.h>
 #include <llvm-18/llvm/IR/DiagnosticHandler.h>
+#include <llvm-18/llvm/IR/FMF.h>
 #include <llvm-18/llvm/IR/Function.h>
 #include <llvm-18/llvm/IR/Instructions.h>
 #include <llvm-18/llvm/IR/Intrinsics.h>
@@ -131,7 +132,7 @@ CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
     }
   }
 
-  // Return the results for this declaration
+  cc.addVariable(name, alloca, finalType->getPointerTo(), finalType);
   return {
       cc.Builder->CreateLoad(finalType, alloca), // ActualValue (the data)
       alloca,                    // ActualValueButAsAPointer (the address)
@@ -254,6 +255,10 @@ CodegenResults FunctionNode::codegen(CodegenContext &cc) {
 
 CodegenResults VariableReferenceNode::codegen(CodegenContext &cc) {
   VWT ptr = cc.lookupVariable(Name); // pointer
+
+  if (!ptr.val || !ptr.type) {
+    throw std::runtime_error("VariableReferenceNode");
+  }
 
   // if (!ptr.val){
   // auto it = cc.StringToStructs.find(Name);
