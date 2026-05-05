@@ -333,6 +333,10 @@ std::vector<Token> Lexer::lexer() {
       Consume();
       out.push_back(make(PLUS, "+"));
       break;
+    case '.':
+      Consume();
+      out.push_back(make(DOT, "."));
+      break;
     case '-':
       Consume();
       out.push_back(make(MINUS, "-"));
@@ -512,6 +516,8 @@ const char *tokenName(TokenType t) {
     return "BREAK";
   case STRUCT:
     return "STRUCT";
+  case DOT:
+    return "DOT";
   default:
     return "UNKNOWN";
   }

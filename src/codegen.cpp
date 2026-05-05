@@ -668,40 +668,64 @@ CodegenResults ArrayAccessNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults SyscallNode::codegen(CodegenContext &cc) {
+  if (!cc.TheContext || !cc.Builder)
+    throw std::runtime_error("SyscallNode: invalid codegen context");
+
   llvm::Type *i64Ty = llvm::Type::getInt64Ty(*cc.TheContext);
   std::vector<llvm::Value *> llvm_args;
+  llvm_args.reserve(args.size());
 
-  // Generate code and cast each arg to i64
-  for (auto &arg : args) {
+  for (size_t i = 0; i < args.size(); i++) {
+    auto &arg = args[i];
+
+    if (!arg)
+      throw std::runtime_error("SyscallNode: null argument at index " +
+                               std::to_string(i));
+
     CodegenResults v = arg->codegen(cc);
+
+    if (!v.ActualValue)
+      throw std::runtime_error(
+          "SyscallNode: failed to generate code for argument " +
+          std::to_string(i));
+
     llvm_args.push_back(v.ActualValue);
   }
 
-  // Zero-pad to 6 arguments
   while (llvm_args.size() < 6)
     llvm_args.push_back(llvm::ConstantInt::get(i64Ty, 0));
 
-  // Syscall number
+  if (llvm_args.size() > 6)
+    throw std::runtime_error("SyscallNode: too many arguments (max 6)");
+
+  if (name < 0)
+    throw std::runtime_error("SyscallNode: invalid syscall number");
+
   llvm::Value *syscall_num = llvm::ConstantInt::get(i64Ty, name);
 
-  // Final argument list: syscall number first
   std::vector<llvm::Value *> final_args = {syscall_num};
   final_args.insert(final_args.end(), llvm_args.begin(), llvm_args.begin() + 6);
 
-  llvm::InlineAsm *asmSyscall = llvm::InlineAsm::get(
-      llvm::FunctionType::get(i64Ty, std::vector<llvm::Type *>(7, i64Ty),
-                              false),
-      "syscall",
-      "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory}",
-      true // hasSideEffects
-  );
+  llvm::FunctionType *ft = llvm::FunctionType::get(
+      i64Ty, std::vector<llvm::Type *>(7, i64Ty), false);
 
-  return {
-      cc.Builder->CreateCall(asmSyscall, final_args),
-      nullptr,
-      nullptr,
-      nullptr,
-  };
+  if (!ft)
+    throw std::runtime_error("SyscallNode: failed to create function type");
+
+  llvm::InlineAsm *asmSyscall = llvm::InlineAsm::get(
+      ft, "syscall",
+      "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory}",
+      true);
+
+  if (!asmSyscall)
+    throw std::runtime_error("SyscallNode: failed to create inline asm");
+
+  llvm::CallInst *call = cc.Builder->CreateCall(asmSyscall, final_args);
+
+  if (!call)
+    throw std::runtime_error("SyscallNode: failed to emit call instruction");
+
+  return {call, nullptr, nullptr, nullptr};
 }
 
 CodegenResults PointerReferenceNode::codegen(CodegenContext &cc) {
@@ -838,10 +862,10 @@ CodegenResults FieldAccessNode::codegen(CodegenContext &cc) {
       break;
     }
   }
+  auto gep = cc.Builder->CreateStructGEP(BASE.ActualType,
+                                         BASE.ActualValueButAsAPointer, index);
 
-  return {cc.Builder->CreateStructGEP(BASE.ActualType,
-                                      BASE.ActualValueButAsAPointer, index),
-          BASE.ActualValue, BASE.ActualType, BASE.ActualTypeButNotThePointer};
+  return {gep, gep, BASE.ActualType, BASE.ActualTypeButNotThePointer};
 }
 
 // int main() {

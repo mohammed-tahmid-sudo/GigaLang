@@ -49,14 +49,13 @@ Token Parser::PeekNext() {
 
 Token Parser::Consume() {
   if (x < input.size()) {
-    return input[x++]; // return current, then advance
+    return input[x++];
   }
   throw std::runtime_error("Attempted to consume past end of input");
 }
 
 Token Parser::Expect(TokenType tk) {
   if (Peek().type == tk) {
-    // std::cout << "COMMING HERE " << tokenName(tk) << std::endl;
     return Consume();
   }
 
@@ -64,10 +63,6 @@ Token Parser::Expect(TokenType tk) {
                         tokenName(Peek().type) + "'");
 
   throw Diagnostics::FatalError("parse failure");
-
-  // throw std::runtime_error("EXPECTED " + std::string(tokenName(tk)) + ", GOT
-  // " +
-  //                          tokenName(Peek().type));
 }
 
 SourceLoc Parser::loc() {
@@ -104,11 +99,10 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   } else if (Peek().type == STRING_LITERAL) {
     std::string val = Peek().value;
     Consume();
-    if (val.size() == 1) { // treat single-character strings as Char
+    if (val.size() == 1) {
       return std::make_unique<CharNode>(val[0]);
     }
 
-    // multi-character strings become arrays
     std::vector<std::unique_ptr<ast>> outputs;
     for (auto &tok : val) {
       outputs.push_back(std::make_unique<CharNode>(tok));
@@ -160,21 +154,8 @@ std::unique_ptr<ast> Parser::ParseFactor() {
 
   } else if (Peek().type == TokenType::IDENTIFIER) {
 
-    // std::cout << Colors::RED << "Comming here " << Peek().value <<
-    // Colors::RESET
-    //           << std::endl;
-
     Token name = Peek();
     Consume();
-    // if (Peek().type == EQ) {
-    //   Consume();
-    //   auto val = ParseExpression();
-
-    //   // kxpect(SEMICOLON);
-
-    //   return std::make_unique<AssignmentNode>(name.value, std::move(val));
-
-    // } else
     if (Peek().type == LPAREN) {
 
       Consume();
@@ -201,15 +182,9 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     } else if (Peek().type == LBRACKET) {
       Consume();
       auto val = ParseExpression();
-      // if (!dynamic_cast<IntegerNode *>(val.get())) {
-      //   throw std::runtime_error("Expected a Number, But got Something
-      //   Else");
-      // }
       Expect(RBRACKET);
 
       return std::make_unique<ArrayAccessNode>(name.value, std::move(val));
-
-      // return std::make_unique<SizeOfNode>(std::move(val));
 
     } else {
       return std::make_unique<VariableReferenceNode>(name.value);
@@ -231,7 +206,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   } else if (Peek().type == SYSCALL) {
     Consume();
     Expect(LPAREN);
-    // Token name = Expect(STRING_LITERAL);
     Token name = Expect(INT_LITERAL);
     Expect(COMMA);
     std::vector<std::unique_ptr<ast>> args;
@@ -266,12 +240,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
         auto idx = ParseExpression();
         Expect(RBRACKET);
 
-        // if (Peek().type == EQ) {
-        //   Consume();
-        //   auto val = ParseExpression();
-        //   return std::make_unique<PointerDeReferenceAssingNode>(
-        //       v.value, std::move(val), std::move(idx));
-        // }
         return std::make_unique<DeReferenceNode>(v.value, std::move(idx));
       }
 
@@ -291,8 +259,18 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   }
 }
 
-std::unique_ptr<ast> Parser::ParseTerm() {
+std::unique_ptr<ast> Parser::ParseFileld() {
   std::unique_ptr<ast> left = ParseFactor();
+  while (Peek().type == DOT) {
+    Consume();
+    auto right = Expect(IDENTIFIER);
+    left = std::make_unique<FieldAccessNode>(std::move(left), right.value);
+  }
+  return left;
+}
+
+std::unique_ptr<ast> Parser::ParseTerm() {
+  std::unique_ptr<ast> left = ParseFileld();
   while (Peek().type == TokenType::STAR || Peek().type == TokenType::SLASH) {
     TokenType type = Peek().type;
     Consume();
@@ -322,6 +300,7 @@ std::unique_ptr<ast> Parser::ParseAddSub() {
   }
   return left;
 }
+
 std::unique_ptr<ast> Parser::ParseComparison() {
   std::unique_ptr<ast> left = ParseAddSub();
   while (Peek().type == TokenType::GT || Peek().type == TokenType::GTE ||
@@ -377,21 +356,13 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
     throw std::runtime_error("Expected TYPES or IDENTIFIER");
   }
 
-  // unsigned size = 0;
   std::optional<unsigned> size;
   if (Peek().type == TokenType::LBRACKET) {
     Consume();
     Token somerandomval = Expect(TokenType::INT_LITERAL);
     Expect(TokenType::RBRACKET);
-    size = std::stoi(somerandomval.value) - 1;
+    size = std::stoi(somerandomval.value);
   }
-
-  // if (Peek().type == TokenType::LBRACKET) {
-  //   Consume();
-  //   Token somerandomval = Expect(TokenType::INT_LITERAL);
-  //   Expect(RBRACKET);
-  //   size += std::stoi(somerandomval.value) - 1;
-  // }
 
   std::unique_ptr<ast> val = nullptr;
   if (Peek().type == TokenType::EQ) {
@@ -403,7 +374,7 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
         diag.error(loc(),
                    "array initializer has " +
                        std::to_string(arrNode->Elements.size()) +
-                   "reduce initializer or increase declared size: let x:" +
+                       "reduce initializer or increase declared size: let x:" +
                        type.value + "[" +
                        std::to_string(arrNode->Elements.size()) + "]");
       }
@@ -436,7 +407,6 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
       arraySize = std::stoi(sizeTok.value);
       Expect(RBRACKET);
 
-      // Create LLVM array type
       llvmType = llvm::ArrayType::get(llvmType, arraySize);
     }
 
@@ -481,9 +451,7 @@ std::unique_ptr<CompoundNode> Parser::ParseCompound() {
                                std::string(tokenName(Peek().type)));
     }
     vals.push_back(std::move(val));
-    // Consume();
   }
-  // std::cout << tokenName(Peek().type) << std::endl;
   Expect(RBRACE);
 
   return std::make_unique<CompoundNode>(std::move(vals));
@@ -491,9 +459,7 @@ std::unique_ptr<CompoundNode> Parser::ParseCompound() {
 std::unique_ptr<ReturnNode> Parser::ParseReturn() {
   Expect(RETURN);
   auto val = ParseExpression();
-  // if (!val)
-  //   throw std::runtime_error("ERROR: Return statement MIssing Expression");
-  // std::cout << tokenName(Peek().type) << std::endl;
+
   Expect(SEMICOLON);
   return std::make_unique<ReturnNode>(std::move(val));
 }
@@ -614,8 +580,6 @@ std::unique_ptr<ast> Parser::ParseStatement() {
       if (Peek().type == SEMICOLON)
         return nullptr;
 
-      // throw std::runtime_error("UnExpected Token" +
-      // std::string(tokenName(Peek().type)));
       throw Diagnostics::FatalError("Unexpected Token " +
                                     std::string(tokenName(Peek().type)));
     }
@@ -626,7 +590,6 @@ std::vector<std::unique_ptr<ast>> Parser::Parse() {
   std::vector<std::unique_ptr<ast>> output;
 
   while (Peek().type != TokenType::EOF_TOKEN) {
-    // skip stray semicolons between top-level statements
     if (Peek().type == TokenType::SEMICOLON) {
       Consume();
       continue;
@@ -643,11 +606,6 @@ std::vector<std::unique_ptr<ast>> Parser::Parse() {
   return output;
 }
 
-// ===============================
-// Utility Functions
-// ===============================
-
-// Print LLVM IR with line numbers
 void printIRWithLineNumbers(llvm::Module *module) {
   std::string irStr;
   llvm::raw_string_ostream rso(irStr);
@@ -663,9 +621,7 @@ void printIRWithLineNumbers(llvm::Module *module) {
   }
 }
 
-// Save IR to file, compile to object, and link to executable
 void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
-  // --- Save LLVM IR to a file ---
   std::error_code EC;
   llvm::raw_fd_ostream dest(filename + ".ll", EC, llvm::sys::fs::OF_None);
   if (EC) {
@@ -675,7 +631,6 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
   module->print(dest, nullptr);
   dest.close();
 
-  // --- Compile IR to object file using llc ---
   std::string objFile = filename + ".o";
   std::string llcCmd = "llc " + filename + ".ll -filetype=obj -o " + objFile;
   if (system(llcCmd.c_str()) != 0) {
@@ -683,7 +638,6 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
     return;
   }
 
-  // --- Link object file to create executable using clang ---
   std::string exeFile = filename + "_exec";
   std::string clangCmd = "clang " + objFile + " -o " + exeFile;
   if (system(clangCmd.c_str()) != 0) {
@@ -694,17 +648,41 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
   std::cout << "Executable created: " << exeFile << std::endl;
 }
 
-// ===============================
-// Main Function
-// ===============================
-
 int main() {
   // --- Source Code to Compile ---
   std::string src = R"(
+
+  struct Person [
+	name:Char*,
+	age:Integer
+  ];
+
+  func size_of(string:Char*) -> Integer {
+	let i:Integer = 0;
+	while (*string[i] != '\0') {
+		i = i + 1;
+	}
+	return i;
+  }
+
+  func AgeVerify(PP:Person*) -> Void {
+	if &pp.age > 18 {
+		let a:Char[11] = "18+"; 
+		@Syscall(1, 1,&a, size_of(&a));
+	} else {
+		let a:Char[11] = "18-"; 
+		@Syscall(1, 1,&a, size_of(&a));
+	}
+  }
+
 func main() -> Integer {
-	let x: Integer = 10;
-	let y: Integer = 20;
-	let sum: Integer = x + y;
+	let MM:Person; 
+	MM.name = "Tahmid";
+	MM.age = 32;
+
+	@Syscall(1, 1,&MM.name, size_of(&MM.name));
+	AgeVerify(&MM);
+
 	return 0;
 }
 
@@ -749,7 +727,6 @@ func main() -> Integer {
   //   std::cout << v->repr() << std::endl;
   // }
 
-  // --- Code Generation ---
   auto &cc = parser.getCodegenContext();
   for (auto &v : astNodes) {
     try {

@@ -1,4 +1,4 @@
-#pragma once
+#pragma once 
 #include "lexer.h"
 #include <llvm-18/llvm/IR/DerivedTypes.h>
 #include <llvm-18/llvm/IR/IRBuilder.h>
