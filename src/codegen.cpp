@@ -1,4 +1,3 @@
-#include "Diagnosis.h"
 #include "lexer.h"
 #include "llvm/IR/InlineAsm.h"
 #include <alloca.h>
@@ -57,8 +56,7 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
   }
 
   if (type.type == IDENTIFIER) {
-    auto it = *cc.StringToStructs.find(type.value);
-    return it.second;
+    return cc.lookupStruct(type.value);
   }
 
   if (t == "INTEGER") {
@@ -78,10 +76,11 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
 }
 
 llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
-  for (char &c : type.value)
+  Token holder = type;
+  for (char &c : holder.value)
     c = toupper(c);
 
-  if (type.value == "VOID")
+  if (holder.value == "VOID")
     return llvm::Type::getVoidTy(*cc.TheContext);
 
   return GetTypeNonVoid(type, cc);
@@ -132,7 +131,15 @@ CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
     }
   }
 
-  cc.addVariable(name, alloca, finalType, finalType->getPointerTo());
+  llvm::Type *elemType = GetTypeNonVoid(Type, cc);
+
+  if (arraySize.has_value()) {
+    finalType = llvm::ArrayType::get(elemType, arraySize.value());
+  } else {
+    finalType = elemType;
+  }
+
+  cc.addVariable(name, alloca, finalType, elemType);
   return {
       cc.Builder->CreateLoad(finalType, alloca), // ActualValue (the data)
       alloca,                    // ActualValueButAsAPointer (the address)
@@ -657,14 +664,26 @@ CodegenResults SizeOfNode::codegen(CodegenContext &cc) {
 
 CodegenResults ArrayAccessNode::codegen(CodegenContext &cc) {
   VWT array = cc.lookupVariable(arrayName);
-  CodegenResults expr = indexExpr->codegen(cc);
-  llvm::Value *indicies[] = {
-      llvm::ConstantInt::get(cc.Builder->getInt32Ty(), 0), expr.ActualValue};
-  llvm::Value *elementPtr =
-      cc.Builder->CreateInBoundsGEP(array.type, array.val, indicies);
+  CodegenResults idx = indexExpr->codegen(cc);
+
+  llvm::Value *elementPtr = nullptr;
+
+  if (array.type->isArrayTy()) {
+
+    llvm::Value *indices[] = {cc.Builder->getInt32(0), idx.ActualValue};
+
+    elementPtr = cc.Builder->CreateInBoundsGEP(array.type, array.val, indices);
+
+  } else if (array.type->isPointerTy()) {
+
+    llvm::Value *realPtr = cc.Builder->CreateLoad(array.type, array.val);
+
+    elementPtr = cc.Builder->CreateInBoundsGEP(array.elementType, realPtr,
+                                               idx.ActualValue);
+  }
 
   return {cc.Builder->CreateLoad(array.elementType, elementPtr), elementPtr,
-          array.type, array.elementType};
+          array.elementType, array.elementType};
 }
 
 CodegenResults SyscallNode::codegen(CodegenContext &cc) {

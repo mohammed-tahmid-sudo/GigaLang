@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 #include "lexer.h"
 #include <llvm-18/llvm/IR/DerivedTypes.h>
 #include <llvm-18/llvm/IR/IRBuilder.h>
@@ -7,6 +7,7 @@
 #include <llvm-18/llvm/IR/Value.h>
 #include <llvm-18/llvm/Support/Endian.h>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <strings.h>
 #include <utility>
@@ -59,6 +60,15 @@ struct CodegenContext {
       if (it->count(name))
         return (*it)[name];
     return {nullptr, nullptr, nullptr};
+  }
+
+  llvm::StructType *lookupStruct(const std::string &name) {
+    auto it = StringToStructs.find(name);
+    if (it != StringToStructs.end()) {
+      return it->second;
+    } else {
+      throw std::runtime_error("Unable TO find Value Called: " + name);
+    }
   }
 
   CodegenContext(const std::string &name)

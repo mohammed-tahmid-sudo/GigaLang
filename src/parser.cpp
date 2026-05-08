@@ -495,9 +495,8 @@ std::unique_ptr<IfNode> Parser::ParseIfElse() {
 
 std::unique_ptr<WhileNode> Parser::ParseWhile() {
   Expect(WHILE);
-  Expect(LPAREN);
   auto args = ParseExpression();
-  Expect(RPAREN);
+
   auto block = ParseStatement();
 
   return std::make_unique<WhileNode>(std::move(args), std::move(block));
@@ -653,38 +652,67 @@ int main() {
   std::string src = R"(
 
   struct Person [
-	name:Char*,
+	name:Char*, 
 	age:Integer
   ];
 
-  func size_of(string:Char*) -> Integer {
-	let i:Integer = 0;
-	while (*string[i] != '\0') {
-		i = i + 1;
+  func reverse(str: Char*, length: Integer) -> Void {
+    let start: Integer = 0;
+    let end: Integer = length - 1;
+    let temp: Char = " ";
+
+    while start < end {
+        temp = str[start];
+        str[start] = str[end];
+        str[end] = temp;
+        start = start + 1;
+        end = end - 1;
+	 };
 	}
-	return i;
-  }
 
-  func AgeVerify(PP:Person*) -> Void {
-	if &pp.age > 18 {
-		let a:Char[11] = "18+"; 
-		@Syscall(1, 1,&a, size_of(&a));
-	} else {
-		let a:Char[11] = "18-"; 
-		@Syscall(1, 1,&a, size_of(&a));
-	}
-  }
+func itoa(num: Integer, str: Char*) -> Void {
+    let i: Integer = 0;
+    let is_negative: Boolean = false;
+    let n: Integer = num;
 
-func main() -> Integer {
-	let MM:Person; 
-	MM.name = "Tahmid";
-	MM.age = 32;
+    if n == 0 {
+        str[i] = "0";
+        i = i + 1;
+        str[i] = "\0";
+        return;
+    };
 
-	@Syscall(1, 1,&MM.name, size_of(&MM.name));
-	AgeVerify(&MM);
+    if n < 0 {
+        is_negative = true;
+        n = 0 - n;
+    };
 
-	return 0;
+    while n > 0 {
+        let rem: Integer = n - ((n / 10) * 10); 
+        str[i] = rem + 48; n = n / 10;
+        i = i + 1;
+    };
+
+    if is_negative {
+        str[i] = "-";
+        i = i + 1;
+    };
+
+    str[i] = "\0";
+    reverse(str, i);
 }
+
+
+	func main() -> Integer {
+		let s:Char[13];
+		itoa(21, &s);
+		@syscall(1, 1, &s, 12);
+
+		let p:Prson;
+		p.name = "tahmid"; 
+		p.age = 21;
+		return 0;
+	}
 
 )";
 
