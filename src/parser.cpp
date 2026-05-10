@@ -708,7 +708,7 @@ func itoa(num: Integer, str: Char*) -> Void {
 		itoa(21, &s);
 		@syscall(1, 1, &s, 12);
 
-		let p:Prson;
+		let p:Person;
 		p.name = "tahmid"; 
 		p.age = 21;
 		return 0;

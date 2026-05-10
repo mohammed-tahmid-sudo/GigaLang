@@ -43,44 +43,49 @@ llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc) {
 }
 
 llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
-  std::string t = type.value;
-
-  for (char &c : t)
-    c = toupper(c);
-
-  if (t.size() > 7 && t.substr(t.size() - 7) == "POINTER") {
-    Token baseTypeToken;
-    baseTypeToken.value = t.substr(0, t.size() - 7);
-    llvm::Type *baseType = GetTypeNonVoid(baseTypeToken, cc);
-    return llvm::PointerType::get(baseType, 0);
-  }
-
+  llvm::Type *retTy;
   if (type.type == IDENTIFIER) {
-    return cc.lookupStruct(type.value);
+    retTy = cc.lookupStruct(type.value);
+
+  } else if (type.type == TYPES) {
+    std::string t = type.value;
+
+    for (auto &i : t) {
+      i = toupper(i);
+    }
+
+    if (t == "INTEGER") {
+      retTy = llvm::Type::getInt32Ty(*cc.TheContext);
+    } else if (t == "FLOAT") {
+      retTy = llvm::Type::getFloatTy(*cc.TheContext);
+    } else if (t == "STRING") {
+      retTy = llvm::Type::getInt8Ty(*cc.TheContext);
+    } else if (t == "BOOLEAN") {
+      retTy = llvm::Type::getInt1Ty(*cc.TheContext);
+    } else if (t == "CHAR") {
+      retTy = llvm::Type::getInt8Ty(*cc.TheContext);
+    }
+  } else {
+    throw std::runtime_error("INVALID TYPE: " + type.value);
   }
 
-  if (t == "INTEGER") {
-    return llvm::Type::getInt32Ty(*cc.TheContext);
-  } else if (t == "FLOAT") {
-    return llvm::Type::getFloatTy(*cc.TheContext);
-  } else if (t == "STRING") {
-    return llvm::Type::getInt8Ty(*cc.TheContext);
-  } else if (t == "BOOLEAN") {
-    return llvm::Type::getInt1Ty(*cc.TheContext);
-  } else if (t == "CHAR") {
-    return llvm::Type::getInt8Ty(*cc.TheContext);
+  // for (int i = type.ptrdepth; i > 0; --i) {
+  //   retTy = llvm::PointerType::get(retTy, 0);
+  // }
+  if (type.ptrdepth > 0) {
+    retTy = llvm::PointerType::get(retTy, 0);
   }
 
-  throw std::runtime_error("Invalid Type: " + type.value);
-  return nullptr;
+
+  return retTy;
 }
 
 llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
-  Token holder = type;
-  for (char &c : holder.value)
+  std::string holder = type.value;
+  for (char &c : holder)
     c = toupper(c);
 
-  if (holder.value == "VOID")
+  if (holder == "VOID")
     return llvm::Type::getVoidTy(*cc.TheContext);
 
   return GetTypeNonVoid(type, cc);
