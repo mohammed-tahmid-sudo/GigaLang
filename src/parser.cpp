@@ -123,8 +123,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
       Expect(RPAREN);
       auto val = ParseExpression();
 
-      return std::make_unique<CastNode>(std::move(val),
-                                        GetTypeNonVoid(type, cc));
+      return std::make_unique<CastNode>(std::move(val), type);
     }
 
     auto val = ParseExpression();
@@ -258,9 +257,19 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     }
   }
 }
+std::unique_ptr<ast> Parser::ParsePointerFileld() {
+  std::unique_ptr<ast> left = ParseFactor();
+  while (Peek().type == DASHGREATER) {
+    Consume();
+    auto right = Expect(IDENTIFIER);
+    left =
+        std::make_unique<PointerFieldAccessNode>(std::move(left), right.value);
+  }
+  return left;
+}
 
 std::unique_ptr<ast> Parser::ParseFileld() {
-  std::unique_ptr<ast> left = ParseFactor();
+  std::unique_ptr<ast> left = ParsePointerFileld();
   while (Peek().type == DOT) {
     Consume();
     auto right = Expect(IDENTIFIER);
@@ -392,25 +401,32 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
   bool varidicType = false;
   Token name = Expect(TokenType::IDENTIFIER);
   Expect(LPAREN);
-  std::vector<std::tuple<std::string, llvm::Type *>> args;
+
+  std::vector<std::tuple<std::string, Token>> args;
 
   while (Peek().type != RPAREN) {
     Token paramName = Expect(IDENTIFIER);
     Expect(COLON);
-    Token type = Expect(TYPES);
-    llvm::Type *llvmType = GetTypeVoid(type, cc);
-
-    unsigned arraySize = 0;
-    if (Peek().type == LBRACKET) {
-      Consume();
-      Token sizeTok = Expect(INT_LITERAL);
-      arraySize = std::stoi(sizeTok.value);
-      Expect(RBRACKET);
-
-      llvmType = llvm::ArrayType::get(llvmType, arraySize);
+    Token type;
+    if (Peek().type == TYPES) {
+      type = Expect(TYPES);
+    } else if (Peek().type == IDENTIFIER) {
+      type = Expect(IDENTIFIER);
     }
 
-    args.push_back({paramName.value, llvmType});
+    // llvm::Type *llvmType = GetTypeVoid(type, cc);
+
+    // unsigned arraySize = 0;
+    // if (Peek().type == LBRACKET) {
+    //   Consume();
+    //   Token sizeTok = Expect(INT_LITERAL);
+    //   arraySize = std::stoi(sizeTok.value);
+    //   Expect(RBRACKET);
+
+    //   llvmType = llvm::ArrayType::get(llvmType, arraySize);
+    // }
+
+    args.push_back({paramName.value, type});
 
     if (Peek().type == COMMA) {
       Consume();
@@ -426,7 +442,13 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
   }
   Expect(RPAREN);
   Expect(DASHGREATER);
-  auto rettype = Expect(TYPES);
+  Token rettype;
+  if (Peek().type == TYPES) {
+    rettype = Expect(TYPES);
+  } else if (Peek().type == IDENTIFIER) {
+    rettype = Expect(IDENTIFIER);
+  }
+
   std::unique_ptr<ast> block = ParseStatement();
   if (!block)
     diag.error(loc(), "function '" + name.value + "' has no body");
@@ -529,13 +551,13 @@ std::unique_ptr<StructCreateNode> Parser::ParseStruct() {
   Token name = Expect(IDENTIFIER);
   Expect(LBRACKET);
 
-  std::unordered_map<std::string, llvm::Type *> types;
+  std::unordered_map<std::string, Token> types;
   while (Peek().type != RBRACKET) {
     Token identifier = Expect(IDENTIFIER);
     Expect(COLON);
     Token type = Expect(TYPES);
 
-    types.emplace(identifier.value, GetTypeNonVoid(type, cc));
+    types.emplace(identifier.value, type);
 
     if (Peek().type == COMMA) {
       Expect(COMMA);
@@ -702,15 +724,19 @@ func itoa(num: Integer, str: Char*) -> Void {
     reverse(str, i);
 }
 
+func verifyAge(p:Person*) -> Void {
+	let a:Integer = p->age;
 
+	if a > 18 {
+		let omg:Char[5] =  "18+\n";
+		@Syscall(1, 1, &omg, 5);
+	}
+}
 	func main() -> Integer {
-		let s:Char[13];
-		itoa(21, &s);
-		@syscall(1, 1, &s, 12);
-
 		let p:Person;
 		p.name = "tahmid"; 
-		p.age = 21;
+		p.age = 1234;
+		verifyAge(&p);
 		return 0;
 	}
 

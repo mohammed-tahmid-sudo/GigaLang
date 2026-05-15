@@ -33,7 +33,7 @@ struct CodegenContext {
   std::vector<std::unordered_map<std::string, VWT>> NamedValuesStack;
   std::unordered_map<std::string, llvm::StructType *> StringToStructs;
   std::unordered_map<llvm::StructType *,
-                     std::vector<std::pair<std::string, size_t>>>
+                     std::vector<std::tuple<std::string, size_t, llvm::Type *>>>
       StructsToPair;
   llvm::BasicBlock *BreakBB = nullptr;
   llvm::BasicBlock *ContinueBB = nullptr;
@@ -47,8 +47,9 @@ struct CodegenContext {
     NamedValuesStack.back()[name] = VWT{value, Type, elemenType};
   }
 
-  void addStruct(const std::string &name, llvm::StructType *Type,
-                 std::vector<std::pair<std::string, size_t>> Pairs) {
+  void
+  addStruct(const std::string &name, llvm::StructType *Type,
+            std::vector<std::tuple<std::string, size_t, llvm::Type *>> Pairs) {
     StringToStructs[name] = Type;
     StructsToPair[Type] = Pairs;
     return;
@@ -154,13 +155,13 @@ struct CompoundNode : ast {
 
 struct FunctionNode : ast {
   std::string name;
-  std::vector<std::tuple<std::string, llvm::Type *>> args;
+  std::vector<std::tuple<std::string, Token>> args;
   bool isVaridic;
   std::unique_ptr<ast> content;
   Token ReturnType;
 
   FunctionNode(const std::string &s,
-               std::vector<std::tuple<std::string, llvm::Type *>> ars,
+               std::vector<std::tuple<std::string, Token>> ars,
                std::unique_ptr<ast> cntnt, Token RetType, bool varidic)
       : name(s), args(ars), content(std::move(cntnt)), ReturnType(RetType),
         isVaridic(varidic) {}
@@ -299,19 +300,19 @@ struct DeReferenceNode : ast {
 
 struct CastNode : ast {
   std::unique_ptr<ast> Value;
-  llvm::Type *targetType;
+  Token targetType;
 
-  CastNode(std::unique_ptr<ast> V, llvm::Type *type)
+  CastNode(std::unique_ptr<ast> V, Token type)
       : Value(std::move(V)), targetType(type) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
 struct StructCreateNode : ast {
-  std::unordered_map<std::string, llvm::Type *> types;
+  std::unordered_map<std::string, Token> types;
   std::string name;
   StructCreateNode(const std::string &s,
-                   std::unordered_map<std::string, llvm::Type *> tps)
+                   std::unordered_map<std::string, Token> tps)
       : name(s), types(std::move(tps)) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
@@ -322,6 +323,16 @@ struct FieldAccessNode : ast {
   std::string name;
 
   FieldAccessNode(std::unique_ptr<ast> Base, const std::string &s)
+      : base(std::move(Base)), name(s) {}
+
+  CodegenResults codegen(CodegenContext &cc) override;
+};
+
+struct PointerFieldAccessNode : ast {
+  std::unique_ptr<ast> base;
+  std::string name;
+
+  PointerFieldAccessNode(std::unique_ptr<ast> Base, const std::string &s)
       : base(std::move(Base)), name(s) {}
 
   CodegenResults codegen(CodegenContext &cc) override;

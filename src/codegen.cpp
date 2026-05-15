@@ -3,6 +3,7 @@
 #include <alloca.h>
 #include <ast.h>
 #include <cctype>
+#include <colors.h>
 #include <cstddef>
 #include <iostream>
 #include <llvm-18/llvm/ADT/ArrayRef.h>
@@ -75,7 +76,6 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
   if (type.ptrdepth > 0) {
     retTy = llvm::PointerType::get(retTy, 0);
   }
-
 
   return retTy;
 }
@@ -203,7 +203,7 @@ CodegenResults CompoundNode::codegen(CodegenContext &cc) {
 CodegenResults FunctionNode::codegen(CodegenContext &cc) {
   std::vector<llvm::Type *> argTypes;
   for (auto &a : args)
-    argTypes.push_back(std::get<1>(a)); // was a.second
+    argTypes.push_back(GetTypeNonVoid(std::get<1>(a), cc)); // was a.second
 
   llvm::Type *retTy = GetTypeVoid(ReturnType, cc);
   auto *FT = llvm::FunctionType::get(retTy, argTypes, isVaridic);
@@ -216,8 +216,9 @@ CodegenResults FunctionNode::codegen(CodegenContext &cc) {
 
   unsigned i = 0;
   for (auto &arg : Fn->args()) {
-    const auto &argName = std::get<0>(args[i]);      // was args[i].first
-    llvm::Type *declaredType = std::get<1>(args[i]); // was args[i].second
+    const auto &argName = std::get<0>(args[i]); // was args[i].first
+    llvm::Type *declaredType =
+        GetTypeNonVoid(std::get<1>(args[i]), cc); // was args[i].second
     i++;
 
     arg.setName(argName);
@@ -837,8 +838,9 @@ llvm::Value *castValue(llvm::IRBuilder<> &builder, llvm::Value *val,
 
 CodegenResults CastNode::codegen(CodegenContext &cc) {
   CodegenResults v = Value->codegen(cc);
-  return {castValue(*cc.Builder, v.ActualValue, targetType, true), nullptr,
-          v.ActualType, v.ActualTypeButNotThePointer};
+  return {castValue(*cc.Builder, v.ActualValue, GetTypeNonVoid(targetType, cc),
+                    true),
+          nullptr, v.ActualType, v.ActualTypeButNotThePointer};
 }
 
 CodegenResults StructCreateNode::codegen(CodegenContext &cc) {
@@ -846,11 +848,12 @@ CodegenResults StructCreateNode::codegen(CodegenContext &cc) {
   std::vector<llvm::Type *> fieldTypes;
   fieldTypes.reserve(types.size());
 
-  std::vector<std::pair<std::string, size_t>> indexs;
+  std::vector<std::tuple<std::string, size_t, llvm::Type *>> indexs;
   size_t i = 0;
   for (const auto &p : types) {
-    fieldTypes.push_back(p.second);
-    indexs.push_back({p.first, i});
+    auto *type = GetTypeNonVoid(p.second, cc);
+    fieldTypes.push_back(type);
+    indexs.push_back({p.first, i, type});
     i++;
   }
 
@@ -866,32 +869,94 @@ CodegenResults StructCreateNode::codegen(CodegenContext &cc) {
 
 CodegenResults FieldAccessNode::codegen(CodegenContext &cc) {
   CodegenResults BASE = base->codegen(cc);
-  std::vector<std::pair<std::string, size_t>> PairList;
 
-  if (auto ST = llvm::dyn_cast<llvm::StructType>(BASE.ActualType)) {
-    auto it = cc.StructsToPair.find(ST);
-
-    if (it != cc.StructsToPair.end()) {
-      PairList = it->second;
-
-    } else {
-      throw std::runtime_error("Unable To Fine Value");
-    }
+  llvm::Type *T = BASE.ActualType;
+  if (T->isPointerTy()) {
+    T = BASE.ActualTypeButNotThePointer;
   }
 
-  size_t index = -1;
-  for (auto x : PairList) {
-    if (x.first == name) {
-      index = x.second;
+  if (!T) {
+    throw std::runtime_error("FieldAccess: base type is null");
+  }
+
+  auto ST = llvm::dyn_cast<llvm::StructType>(T);
+  if (!ST) {
+    throw std::runtime_error("Field access on non-struct type");
+  }
+
+  auto it = cc.StructsToPair.find(ST);
+  if (it == cc.StructsToPair.end()) {
+    throw std::runtime_error("Unknown struct type");
+  }
+
+  const auto &PairList = it->second;
+
+  size_t index = (size_t)-1;
+
+  llvm::Type *FieldType;
+  for (auto &x : PairList) {
+    if (std::get<0>(x) == name) {
+      index = std::get<1>(x);
+      FieldType = std::get<2>(x);
       break;
     }
   }
-  auto gep = cc.Builder->CreateStructGEP(BASE.ActualType,
-                                         BASE.ActualValueButAsAPointer, index);
 
-  return {gep, gep, BASE.ActualType, BASE.ActualTypeButNotThePointer};
+  if (index == (size_t)-1) {
+    throw std::runtime_error("Invalid field: " + name);
+  }
+
+  auto gep =
+      cc.Builder->CreateStructGEP(ST, BASE.ActualValueButAsAPointer, index);
+
+  auto loaded = cc.Builder->CreateLoad(FieldType, gep);
+
+  return {loaded, gep, BASE.ActualType, BASE.ActualTypeButNotThePointer};
 }
 
+CodegenResults PointerFieldAccessNode::codegen(CodegenContext &cc) {
+  CodegenResults BASE = base->codegen(cc);
+
+  llvm::Value *ptr = BASE.ActualValueButAsAPointer;
+  llvm::Type *T = BASE.ActualTypeButNotThePointer;
+
+  if (!ptr) {
+    throw std::runtime_error("p->field on non-lvalue");
+  }
+
+  auto ST = llvm::dyn_cast<llvm::StructType>(T);
+  if (!ST) {
+    throw std::runtime_error("Pointer field access on non-struct type");
+  }
+
+  auto it = cc.StructsToPair.find(ST);
+  if (it == cc.StructsToPair.end()) {
+    throw std::runtime_error("Unknown struct type");
+  }
+
+  const auto &fields = it->second;
+
+  size_t index = (size_t)-1;
+  llvm::Type *fieldType = nullptr;
+
+  for (auto &f : fields) {
+    if (std::get<0>(f) == name) {
+      index = std::get<1>(f);
+      fieldType = std::get<2>(f);
+      break;
+    }
+  }
+
+  if (index == (size_t)-1) {
+    throw std::runtime_error("Invalid field: " + name);
+  }
+
+  llvm::Value *gep = cc.Builder->CreateStructGEP(ST, ptr, index);
+
+  llvm::Value *loaded = cc.Builder->CreateLoad(fieldType, gep);
+
+  return {loaded, gep, fieldType, ST};
+}
 // int main() {
 //   CodegenContext ctx("myprogram");
 //   ctx.pushScope(); // Start Global Scope
