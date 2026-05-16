@@ -678,54 +678,55 @@ int main() {
 	age:Integer
   ];
 
-  func reverse(str: Char*, length: Integer) -> Void {
-    let start: Integer = 0;
-    let end: Integer = length - 1;
-    let temp: Char = " ";
+  // func reverse(str: Char*, length: Integer) -> Void {
+  //   let start: Integer = 0;
+  //   let end: Integer = length - 1;
+  //   let temp: Char = " ";
 
-    while start < end {
-        temp = str[start];
-        str[start] = str[end];
-        str[end] = temp;
-        start = start + 1;
-        end = end - 1;
-	 };
-	}
+  //   while start < end {
+  //       temp = str[start];
+  //       str[start] = str[end];
+  //       str[end] = temp;
+  //       start = start + 1;
+  //       end = end - 1;
+	 // };
+	// }
 
-func itoa(num: Integer, str: Char*) -> Void {
-    let i: Integer = 0;
-    let is_negative: Boolean = false;
-    let n: Integer = num;
+// func itoa(num: Integer, str: Char*) -> Void {
+  //   let i: Integer = 0;
+  //   let is_negative: Boolean = false;
+  //   let n: Integer = num;
 
-    if n == 0 {
-        str[i] = "0";
-        i = i + 1;
-        str[i] = "\0";
-        return;
-    };
+  //   if n == 0 {
+  //       str[i] = "0";
+  //       i = i + 1;
+  //       str[i] = "\0";
+  //       return;
+  //   };
 
-    if n < 0 {
-        is_negative = true;
-        n = 0 - n;
-    };
+  //   if n < 0 {
+  //       is_negative = true;
+  //       n = 0 - n;
+  //   };
 
-    while n > 0 {
-        let rem: Integer = n - ((n / 10) * 10); 
-        str[i] = rem + 48; n = n / 10;
-        i = i + 1;
-    };
+  //   while n > 0 {
+  //       let rem: Integer = n - ((n / 10) * 10); 
+  //       str[i] = rem + 48; n = n / 10;
+  //       i = i + 1;
+  //   };
 
-    if is_negative {
-        str[i] = "-";
-        i = i + 1;
-    };
+  //   if is_negative {
+  //       str[i] = "-";
+  //       i = i + 1;
+  //   };
 
-    str[i] = "\0";
-    reverse(str, i);
-}
+  //   str[i] = "\0";
+  //   reverse(str, i);
+// }
 
 func verifyAge(p:Person*) -> Void {
-	let a:Integer = p->age;
+	let P:Person = *p; 
+	let a:Integer = P.age;
 
 	if a > 18 {
 		let omg:Char[5] =  "18+\n";

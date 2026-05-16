@@ -915,48 +915,9 @@ CodegenResults FieldAccessNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults PointerFieldAccessNode::codegen(CodegenContext &cc) {
-  CodegenResults BASE = base->codegen(cc);
-
-  llvm::Value *ptr = BASE.ActualValueButAsAPointer;
-  llvm::Type *T = BASE.ActualTypeButNotThePointer;
-
-  if (!ptr) {
-    throw std::runtime_error("p->field on non-lvalue");
-  }
-
-  auto ST = llvm::dyn_cast<llvm::StructType>(T);
-  if (!ST) {
-    throw std::runtime_error("Pointer field access on non-struct type");
-  }
-
-  auto it = cc.StructsToPair.find(ST);
-  if (it == cc.StructsToPair.end()) {
-    throw std::runtime_error("Unknown struct type");
-  }
-
-  const auto &fields = it->second;
-
-  size_t index = (size_t)-1;
-  llvm::Type *fieldType = nullptr;
-
-  for (auto &f : fields) {
-    if (std::get<0>(f) == name) {
-      index = std::get<1>(f);
-      fieldType = std::get<2>(f);
-      break;
-    }
-  }
-
-  if (index == (size_t)-1) {
-    throw std::runtime_error("Invalid field: " + name);
-  }
-
-  llvm::Value *gep = cc.Builder->CreateStructGEP(ST, ptr, index);
-
-  llvm::Value *loaded = cc.Builder->CreateLoad(fieldType, gep);
-
-  return {loaded, gep, fieldType, ST};
+  return {nullptr, nullptr, nullptr, nullptr};
 }
+
 // int main() {
 //   CodegenContext ctx("myprogram");
 //   ctx.pushScope(); // Start Global Scope
