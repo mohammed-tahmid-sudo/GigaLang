@@ -754,12 +754,13 @@ CodegenResults SyscallNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults PointerReferenceNode::codegen(CodegenContext &cc) {
-  VWT var = cc.lookupVariable(name);
-
-  if (!var.val) {
-    throw std::runtime_error("CANNOT FIND VALUE " + name);
+  // VWT var = cc.lookupVariable(name);
+  CodegenResults var = name->codegen(cc);
+  if (!var.ActualValue) {
+    throw std::runtime_error("CANNOT FIND VALUE ");
   }
-  return {var.val, var.val, var.type, var.elementType};
+  return {var.ActualValueButAsAPointer, var.ActualValueButAsAPointer,
+          var.ActualType, var.ActualTypeButNotThePointer};
 }
 
 CodegenResults DeReferenceNode::codegen(CodegenContext &cc) {
@@ -903,6 +904,11 @@ CodegenResults FieldAccessNode::codegen(CodegenContext &cc) {
   }
 
   if (index == (size_t)-1) {
+    std::cerr << "Available Fields" << std::endl;
+    for (auto x : PairList) {
+      std::cout << std::get<0>(x) << std::endl;
+    }
+
     throw std::runtime_error("Invalid field: " + name);
   }
 

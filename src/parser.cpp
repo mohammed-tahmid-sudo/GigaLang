@@ -206,17 +206,14 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     Consume();
     Expect(LPAREN);
     Token name = Expect(INT_LITERAL);
-    Expect(COMMA);
     std::vector<std::unique_ptr<ast>> args;
-    while (Peek().type != RPAREN) {
-      args.push_back(ParseExpression());
 
-      if (Peek().type == COMMA) {
-        Consume();
-        continue;
-      } else {
+    for (int i = 0; i < 6; i++) {
+      if (Peek().type == RPAREN)
         break;
-      }
+
+      Expect(COMMA);
+      args.push_back(ParseExpression());
     }
 
     Expect(RPAREN);
@@ -225,8 +222,8 @@ std::unique_ptr<ast> Parser::ParseFactor() {
                                          std::move(args));
   } else if (Peek().type == ANDPERCENT) {
     Consume();
-    Token name = Expect(IDENTIFIER);
-    return std::make_unique<PointerReferenceNode>(name.value);
+    // Token name = Expect(IDENTIFIER);
+    return std::make_unique<PointerReferenceNode>(ParseExpression());
 
   } else if (Peek().type == STAR) {
 
@@ -555,7 +552,13 @@ std::unique_ptr<StructCreateNode> Parser::ParseStruct() {
   while (Peek().type != RBRACKET) {
     Token identifier = Expect(IDENTIFIER);
     Expect(COLON);
-    Token type = Expect(TYPES);
+
+    Token type;
+    if (Peek().type == TYPES) {
+      type = Expect(TYPES);
+    } else if (Peek().type == IDENTIFIER) {
+      type = Expect(IDENTIFIER);
+    }
 
     types.emplace(identifier.value, type);
 
@@ -678,51 +681,10 @@ int main() {
 	age:Integer
   ];
 
-  // func reverse(str: Char*, length: Integer) -> Void {
-  //   let start: Integer = 0;
-  //   let end: Integer = length - 1;
-  //   let temp: Char = " ";
+  struct bunchOfPeople [
+	p:Person
+  ];
 
-  //   while start < end {
-  //       temp = str[start];
-  //       str[start] = str[end];
-  //       str[end] = temp;
-  //       start = start + 1;
-  //       end = end - 1;
-	 // };
-	// }
-
-// func itoa(num: Integer, str: Char*) -> Void {
-  //   let i: Integer = 0;
-  //   let is_negative: Boolean = false;
-  //   let n: Integer = num;
-
-  //   if n == 0 {
-  //       str[i] = "0";
-  //       i = i + 1;
-  //       str[i] = "\0";
-  //       return;
-  //   };
-
-  //   if n < 0 {
-  //       is_negative = true;
-  //       n = 0 - n;
-  //   };
-
-  //   while n > 0 {
-  //       let rem: Integer = n - ((n / 10) * 10); 
-  //       str[i] = rem + 48; n = n / 10;
-  //       i = i + 1;
-  //   };
-
-  //   if is_negative {
-  //       str[i] = "-";
-  //       i = i + 1;
-  //   };
-
-  //   str[i] = "\0";
-  //   reverse(str, i);
-// }
 
 func verifyAge(p:Person*) -> Void {
 	let P:Person = *p; 
@@ -734,10 +696,15 @@ func verifyAge(p:Person*) -> Void {
 	}
 }
 	func main() -> Integer {
-		let p:Person;
+		let person:Person;
 		p.name = "tahmid"; 
 		p.age = 1234;
-		verifyAge(&p);
+
+		let ppl:bunchOfPeople;
+		ppl.p = p;
+
+		// verifyAge(ppl.p3);
+		@syscall(1, 1, ppl.p.p, 7);
 		return 0;
 	}
 
@@ -803,6 +770,5 @@ func verifyAge(p:Person*) -> Void {
             << Colors::RESET << std::endl;
 
   saveIRAndCompile(cc.Module.get(), "output");
-
   return 0;
 }
