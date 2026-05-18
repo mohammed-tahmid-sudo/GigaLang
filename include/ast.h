@@ -282,8 +282,10 @@ struct SyscallNode : ast {
 };
 
 struct PointerReferenceNode : ast {
-  std::unique_ptr<ast> name;
-  PointerReferenceNode(std::unique_ptr<ast> s) : name(std::move(s)) {}
+  // std::unique_ptr<ast> name;
+  std::string name;
+  // PointerReferenceNode(std::unique_ptr<ast> s) : name(std::move(s)) {}
+  PointerReferenceNode(const std::string &s) : name(std::move(s)) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
 };

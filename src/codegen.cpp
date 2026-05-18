@@ -269,8 +269,8 @@ CodegenResults FunctionNode::codegen(CodegenContext &cc) {
 CodegenResults VariableReferenceNode::codegen(CodegenContext &cc) {
   VWT ptr = cc.lookupVariable(Name); // pointer
 
-  if (!ptr.val || !ptr.type) {
-    throw std::runtime_error("VariableReferenceNode");
+  if (!ptr.val) {
+    throw std::runtime_error("VariableReferenceNode Cannot find Variable named: " + Name);
   }
 
   // if (!ptr.val){
@@ -754,13 +754,16 @@ CodegenResults SyscallNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults PointerReferenceNode::codegen(CodegenContext &cc) {
-  // VWT var = cc.lookupVariable(name);
-  CodegenResults var = name->codegen(cc);
-  if (!var.ActualValue) {
+  VWT var = cc.lookupVariable(name);
+  if (!var.val)
     throw std::runtime_error("CANNOT FIND VALUE ");
-  }
-  return {var.ActualValueButAsAPointer, var.ActualValueButAsAPointer,
-          var.ActualType, var.ActualTypeButNotThePointer};
+  // CodegenResults var = name->codegen(cc);
+  // if (!var.ActualValue) {
+  //   throw std::runtime_error("CANNOT FIND VALUE ");
+  // }
+  // return {var.ActualValueButAsAPointer, var.ActualValueButAsAPointer,
+  //         var.ActualType, var.ActualTypeButNotThePointer};
+  return {var.val, var.val, var.type, var.elementType};
 }
 
 CodegenResults DeReferenceNode::codegen(CodegenContext &cc) {

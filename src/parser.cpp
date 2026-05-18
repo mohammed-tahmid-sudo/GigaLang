@@ -205,15 +205,19 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   } else if (Peek().type == SYSCALL) {
     Consume();
     Expect(LPAREN);
+    // Token name = Expect(STRING_LITERAL);
     Token name = Expect(INT_LITERAL);
+    Expect(COMMA);
     std::vector<std::unique_ptr<ast>> args;
-
-    for (int i = 0; i < 6; i++) {
-      if (Peek().type == RPAREN)
-        break;
-
-      Expect(COMMA);
+    while (Peek().type != RPAREN) {
       args.push_back(ParseExpression());
+
+      if (Peek().type == COMMA) {
+        Consume();
+        continue;
+      } else {
+        break;
+      }
     }
 
     Expect(RPAREN);
@@ -222,8 +226,8 @@ std::unique_ptr<ast> Parser::ParseFactor() {
                                          std::move(args));
   } else if (Peek().type == ANDPERCENT) {
     Consume();
-    // Token name = Expect(IDENTIFIER);
-    return std::make_unique<PointerReferenceNode>(ParseExpression());
+    Token name = Expect(IDENTIFIER);
+    return std::make_unique<PointerReferenceNode>(name.value);
 
   } else if (Peek().type == STAR) {
 
@@ -681,30 +685,25 @@ int main() {
 	age:Integer
   ];
 
-  struct bunchOfPeople [
+  struct ManyPPL [
 	p:Person
   ];
 
 
-func verifyAge(p:Person*) -> Void {
-	let P:Person = *p; 
-	let a:Integer = P.age;
-
-	if a > 18 {
-		let omg:Char[5] =  "18+\n";
-		@Syscall(1, 1, &omg, 5);
-	}
-}
 	func main() -> Integer {
 		let person:Person;
-		p.name = "tahmid"; 
-		p.age = 1234;
+		let s:Char[8] = "tahmid\n";
+		person.name = &s; 
+		person.age = 1234;
 
-		let ppl:bunchOfPeople;
-		ppl.p = p;
+		let people:ManyPPL;
+		people.p = person;
 
-		// verifyAge(ppl.p3);
-		@syscall(1, 1, ppl.p.p, 7);
+		let store:Person = people.p;
+		@Syscall(1, 1, store.name, 8 );
+		// let s:Char[13] = "hello world\n";
+		// @Syscall(1, 1, &s, 12);
+
 		return 0;
 	}
 
