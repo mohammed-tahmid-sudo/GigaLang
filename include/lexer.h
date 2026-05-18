@@ -47,6 +47,7 @@ enum TokenType {
   GTE,
   AND,
   OR,
+  DOT,
   // Punctuation
   LPAREN,
   RPAREN,
@@ -70,6 +71,8 @@ const char *tokenName(TokenType t);
 struct Token {
   TokenType type;
   std::string value;
+
+  unsigned ptrdepth = 0;
 
   unsigned line = 0;
   unsigned col = 0;
