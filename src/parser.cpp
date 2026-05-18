@@ -49,14 +49,13 @@ Token Parser::PeekNext() {
 
 Token Parser::Consume() {
   if (x < input.size()) {
-    return input[x++]; // return current, then advance
+    return input[x++];
   }
   throw std::runtime_error("Attempted to consume past end of input");
 }
 
 Token Parser::Expect(TokenType tk) {
   if (Peek().type == tk) {
-    // std::cout << "COMMING HERE " << tokenName(tk) << std::endl;
     return Consume();
   }
 
@@ -64,10 +63,6 @@ Token Parser::Expect(TokenType tk) {
                         tokenName(Peek().type) + "'");
 
   throw Diagnostics::FatalError("parse failure");
-
-  // throw std::runtime_error("EXPECTED " + std::string(tokenName(tk)) + ", GOT
-  // " +
-  //                          tokenName(Peek().type));
 }
 
 SourceLoc Parser::loc() {
@@ -104,11 +99,10 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   } else if (Peek().type == STRING_LITERAL) {
     std::string val = Peek().value;
     Consume();
-    if (val.size() == 1) { // treat single-character strings as Char
+    if (val.size() == 1) {
       return std::make_unique<CharNode>(val[0]);
     }
 
-    // multi-character strings become arrays
     std::vector<std::unique_ptr<ast>> outputs;
     for (auto &tok : val) {
       outputs.push_back(std::make_unique<CharNode>(tok));
@@ -117,8 +111,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
         static_cast<CharNode *>(outputs.back().get())->val != '\0') {
       outputs.push_back(std::make_unique<CharNode>(0));
     }
-    return std::make_unique<ArrayLiteralNode>(
-        llvm::Type::getInt32Ty(*cc.TheContext), std::move(outputs));
+    return std::make_unique<ArrayLiteralNode>(std::move(outputs));
   }
 
   else if (Peek().type == TokenType::LPAREN) {
@@ -130,8 +123,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
       Expect(RPAREN);
       auto val = ParseExpression();
 
-      return std::make_unique<CastNode>(std::move(val),
-                                        GetTypeNonVoid(type, cc));
+      return std::make_unique<CastNode>(std::move(val), type);
     }
 
     auto val = ParseExpression();
@@ -157,25 +149,12 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     }
 
     Expect(TokenType::RBRACKET);
-    return std::make_unique<ArrayLiteralNode>(nullptr, std::move(elements));
+    return std::make_unique<ArrayLiteralNode>(std::move(elements));
 
   } else if (Peek().type == TokenType::IDENTIFIER) {
 
-    // std::cout << Colors::RED << "Comming here " << Peek().value <<
-    // Colors::RESET
-    //           << std::endl;
-
     Token name = Peek();
     Consume();
-    // if (Peek().type == EQ) {
-    //   Consume();
-    //   auto val = ParseExpression();
-
-    //   // kxpect(SEMICOLON);
-
-    //   return std::make_unique<AssignmentNode>(name.value, std::move(val));
-
-    // } else
     if (Peek().type == LPAREN) {
 
       Consume();
@@ -202,15 +181,9 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     } else if (Peek().type == LBRACKET) {
       Consume();
       auto val = ParseExpression();
-      // if (!dynamic_cast<IntegerNode *>(val.get())) {
-      //   throw std::runtime_error("Expected a Number, But got Something
-      //   Else");
-      // }
       Expect(RBRACKET);
 
       return std::make_unique<ArrayAccessNode>(name.value, std::move(val));
-
-      // return std::make_unique<SizeOfNode>(std::move(val));
 
     } else {
       return std::make_unique<VariableReferenceNode>(name.value);
@@ -267,12 +240,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
         auto idx = ParseExpression();
         Expect(RBRACKET);
 
-        if (Peek().type == EQ) {
-          Consume();
-          auto val = ParseExpression();
-          return std::make_unique<PointerDeReferenceAssingNode>(
-              v.value, std::move(val), std::move(idx));
-        }
         return std::make_unique<DeReferenceNode>(v.value, std::move(idx));
       }
 
@@ -291,9 +258,29 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     }
   }
 }
+std::unique_ptr<ast> Parser::ParsePointerFileld() {
+  std::unique_ptr<ast> left = ParseFactor();
+  while (Peek().type == DASHGREATER) {
+    Consume();
+    auto right = Expect(IDENTIFIER);
+    left =
+        std::make_unique<PointerFieldAccessNode>(std::move(left), right.value);
+  }
+  return left;
+}
+
+std::unique_ptr<ast> Parser::ParseFileld() {
+  std::unique_ptr<ast> left = ParsePointerFileld();
+  while (Peek().type == DOT) {
+    Consume();
+    auto right = Expect(IDENTIFIER);
+    left = std::make_unique<FieldAccessNode>(std::move(left), right.value);
+  }
+  return left;
+}
 
 std::unique_ptr<ast> Parser::ParseTerm() {
-  std::unique_ptr<ast> left = ParseFactor();
+  std::unique_ptr<ast> left = ParseFileld();
   while (Peek().type == TokenType::STAR || Peek().type == TokenType::SLASH) {
     TokenType type = Peek().type;
     Consume();
@@ -323,6 +310,7 @@ std::unique_ptr<ast> Parser::ParseAddSub() {
   }
   return left;
 }
+
 std::unique_ptr<ast> Parser::ParseComparison() {
   std::unique_ptr<ast> left = ParseAddSub();
   while (Peek().type == TokenType::GT || Peek().type == TokenType::GTE ||
@@ -378,13 +366,12 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
     throw std::runtime_error("Expected TYPES or IDENTIFIER");
   }
 
-  unsigned size = 1;
-
+  std::optional<unsigned> size;
   if (Peek().type == TokenType::LBRACKET) {
     Consume();
     Token somerandomval = Expect(TokenType::INT_LITERAL);
-    Expect(RBRACKET);
-    size += std::stoi(somerandomval.value) - 1;
+    Expect(TokenType::RBRACKET);
+    size = std::stoi(somerandomval.value);
   }
 
   std::unique_ptr<ast> val = nullptr;
@@ -397,8 +384,7 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
         diag.error(loc(),
                    "array initializer has " +
                        std::to_string(arrNode->Elements.size()) +
-                       " elements but declared size is " + std::to_string(size),
-                   "reduce initializer or increase declared size: let x:" +
+                       "reduce initializer or increase declared size: let x:" +
                        type.value + "[" +
                        std::to_string(arrNode->Elements.size()) + "]");
       }
@@ -416,26 +402,32 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
   bool varidicType = false;
   Token name = Expect(TokenType::IDENTIFIER);
   Expect(LPAREN);
-  std::vector<std::tuple<std::string, llvm::Type *>> args;
+
+  std::vector<std::tuple<std::string, Token>> args;
 
   while (Peek().type != RPAREN) {
     Token paramName = Expect(IDENTIFIER);
     Expect(COLON);
-    Token type = Expect(TYPES);
-    llvm::Type *llvmType = GetTypeVoid(type, cc);
-
-    unsigned arraySize = 0;
-    if (Peek().type == LBRACKET) {
-      Consume();
-      Token sizeTok = Expect(INT_LITERAL);
-      arraySize = std::stoi(sizeTok.value);
-      Expect(RBRACKET);
-
-      // Create LLVM array type
-      llvmType = llvm::ArrayType::get(llvmType, arraySize);
+    Token type;
+    if (Peek().type == TYPES) {
+      type = Expect(TYPES);
+    } else if (Peek().type == IDENTIFIER) {
+      type = Expect(IDENTIFIER);
     }
 
-    args.push_back({paramName.value, llvmType});
+    // llvm::Type *llvmType = GetTypeVoid(type, cc);
+
+    // unsigned arraySize = 0;
+    // if (Peek().type == LBRACKET) {
+    //   Consume();
+    //   Token sizeTok = Expect(INT_LITERAL);
+    //   arraySize = std::stoi(sizeTok.value);
+    //   Expect(RBRACKET);
+
+    //   llvmType = llvm::ArrayType::get(llvmType, arraySize);
+    // }
+
+    args.push_back({paramName.value, type});
 
     if (Peek().type == COMMA) {
       Consume();
@@ -451,7 +443,13 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
   }
   Expect(RPAREN);
   Expect(DASHGREATER);
-  auto rettype = Expect(TYPES);
+  Token rettype;
+  if (Peek().type == TYPES) {
+    rettype = Expect(TYPES);
+  } else if (Peek().type == IDENTIFIER) {
+    rettype = Expect(IDENTIFIER);
+  }
+
   std::unique_ptr<ast> block = ParseStatement();
   if (!block)
     diag.error(loc(), "function '" + name.value + "' has no body");
@@ -476,9 +474,7 @@ std::unique_ptr<CompoundNode> Parser::ParseCompound() {
                                std::string(tokenName(Peek().type)));
     }
     vals.push_back(std::move(val));
-    // Consume();
   }
-  // std::cout << tokenName(Peek().type) << std::endl;
   Expect(RBRACE);
 
   return std::make_unique<CompoundNode>(std::move(vals));
@@ -486,9 +482,7 @@ std::unique_ptr<CompoundNode> Parser::ParseCompound() {
 std::unique_ptr<ReturnNode> Parser::ParseReturn() {
   Expect(RETURN);
   auto val = ParseExpression();
-  // if (!val)
-  //   throw std::runtime_error("ERROR: Return statement MIssing Expression");
-  // std::cout << tokenName(Peek().type) << std::endl;
+
   Expect(SEMICOLON);
   return std::make_unique<ReturnNode>(std::move(val));
 }
@@ -524,9 +518,8 @@ std::unique_ptr<IfNode> Parser::ParseIfElse() {
 
 std::unique_ptr<WhileNode> Parser::ParseWhile() {
   Expect(WHILE);
-  Expect(LPAREN);
   auto args = ParseExpression();
-  Expect(RPAREN);
+
   auto block = ParseStatement();
 
   return std::make_unique<WhileNode>(std::move(args), std::move(block));
@@ -559,13 +552,19 @@ std::unique_ptr<StructCreateNode> Parser::ParseStruct() {
   Token name = Expect(IDENTIFIER);
   Expect(LBRACKET);
 
-  std::unordered_map<std::string, llvm::Type *> types;
+  std::unordered_map<std::string, Token> types;
   while (Peek().type != RBRACKET) {
     Token identifier = Expect(IDENTIFIER);
     Expect(COLON);
-    Token type = Expect(TYPES);
 
-    types.emplace(identifier.value, GetTypeNonVoid(type, cc));
+    Token type;
+    if (Peek().type == TYPES) {
+      type = Expect(TYPES);
+    } else if (Peek().type == IDENTIFIER) {
+      type = Expect(IDENTIFIER);
+    }
+
+    types.emplace(identifier.value, type);
 
     if (Peek().type == COMMA) {
       Expect(COMMA);
@@ -609,8 +608,6 @@ std::unique_ptr<ast> Parser::ParseStatement() {
       if (Peek().type == SEMICOLON)
         return nullptr;
 
-      // throw std::runtime_error("UnExpected Token" +
-      // std::string(tokenName(Peek().type)));
       throw Diagnostics::FatalError("Unexpected Token " +
                                     std::string(tokenName(Peek().type)));
     }
@@ -621,7 +618,6 @@ std::vector<std::unique_ptr<ast>> Parser::Parse() {
   std::vector<std::unique_ptr<ast>> output;
 
   while (Peek().type != TokenType::EOF_TOKEN) {
-    // skip stray semicolons between top-level statements
     if (Peek().type == TokenType::SEMICOLON) {
       Consume();
       continue;
@@ -638,11 +634,6 @@ std::vector<std::unique_ptr<ast>> Parser::Parse() {
   return output;
 }
 
-// ===============================
-// Utility Functions
-// ===============================
-
-// Print LLVM IR with line numbers
 void printIRWithLineNumbers(llvm::Module *module) {
   std::string irStr;
   llvm::raw_string_ostream rso(irStr);
@@ -658,9 +649,7 @@ void printIRWithLineNumbers(llvm::Module *module) {
   }
 }
 
-// Save IR to file, compile to object, and link to executable
 void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
-  // --- Save LLVM IR to a file ---
   std::error_code EC;
   llvm::raw_fd_ostream dest(filename + ".ll", EC, llvm::sys::fs::OF_None);
   if (EC) {
@@ -670,7 +659,6 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
   module->print(dest, nullptr);
   dest.close();
 
-  // --- Compile IR to object file using llc ---
   std::string objFile = filename + ".o";
   std::string llcCmd = "llc " + filename + ".ll -filetype=obj -o " + objFile;
   if (system(llcCmd.c_str()) != 0) {
@@ -678,7 +666,6 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
     return;
   }
 
-  // --- Link object file to create executable using clang ---
   std::string exeFile = filename + "_exec";
   std::string clangCmd = "clang " + objFile + " -o " + exeFile;
   if (system(clangCmd.c_str()) != 0) {
@@ -689,91 +676,98 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
   std::cout << "Executable created: " << exeFile << std::endl;
 }
 
-// ===============================
-// Main Function
-// ===============================
+int main() {
+  // --- Source Code to Compile ---
+  std::string src = R"(
 
-// int main() {
-//   // --- Source Code to Compile ---
-//   std::string src = R"(
-// func strlen(str: Char* ) -> Integer {
-// 	let i:Integer = 0;
-// 	while (*str[i] != '\0') { i = i + 1; }
-// 	return i;
-// }
+  struct Person [
+	name:Char*, 
+	age:Integer
+  ];
 
-// func main() -> Integer {
+  struct ManyPPL [
+	p:Person
+  ];
 
-// 	let x: Integer = 10;
-// let y: Integer = 20;
-// let sum: Integer = x + y;
 
-// 	return 0 ;
-// }
+	func main() -> Integer {
+		let person:Person;
+		let s:Char[8] = "tahmid\n";
+		person.name = &s; 
+		person.age = 1234;
 
-// )";
+		let people:ManyPPL;
+		people.p = person;
 
-//   std::vector<std::string> sourceLines;
-//   {
-//     std::istringstream ss(src);
-//     std::string line;
-//     while (std::getline(ss, line))
-//       sourceLines.push_back(line);
-//   }
+		let store:Person = people.p;
+		@Syscall(1, 1, store.name, 8 );
+		// let s:Char[13] = "hello world\n";
+		// @Syscall(1, 1, &s, 12);
 
-//   Diagnostics diag(sourceLines);
+		return 0;
+	}
 
-//   // --- Lexical Analysis ---
-//   Lexer lexer(src);
-//   auto program = lexer.lexer();
+)";
 
-//   std::cout << "Tokens:\n";
-//   int count = 0;
-//   for (const auto &stmt : program) {
-//     std::cout << tokenName(stmt.type) << ":'" << stmt.value << "'  ";
-//     count++;
-//     if (count % 5 == 0) // 5 tokens per line
-//       std::cout << "\n";
-//   }
-//   if (count % 5 != 0)
-//     std::cout << "\n"; // print final newline if needed
+  std::vector<std::string> sourceLines;
+  {
+    std::istringstream ss(src);
+    std::string line;
+    while (std::getline(ss, line))
+      sourceLines.push_back(line);
+  }
 
-//   std::cout << Colors::BOLD << Colors::RED
-//             << "\n-------------------------------PARSED-AST--------------------"
-//                "------------------\n"
-//             << Colors::RESET << std::endl;
+  Diagnostics diag(sourceLines);
 
-//   // --- Parsing ---
-//   Parser parser(program, "MYMODULE", diag);
-//   auto astNodes = parser.Parse();
+  // --- Lexical Analysis ---
+  Lexer lexer(src);
+  auto program = lexer.lexer();
 
-//   // std::cout << "AST Nodes:\n";
-//   // for (auto &v : astNodes) {
-//   //   std::cout << v->repr() << std::endl;
-//   // }
+  std::cout << "Tokens:\n";
+  int count = 0;
+  for (const auto &stmt : program) {
+    std::cout << tokenName(stmt.type) << ":'" << stmt.value << "'  ";
+    count++;
+    if (count % 5 == 0) // 5 tokens per line
+      std::cout << "\n";
+  }
+  if (count % 5 != 0)
+    std::cout << "\n"; // print final newline if needed
 
-//   // --- Code Generation ---
-//   auto &cc = parser.getCodegenContext();
-//   for (auto &v : astNodes) {
-//     try {
-//       v->codegen(cc);
-//     } catch (const std::exception &e) {
-//       std::cerr << "Codegen error: " << e.what() << std::endl;
-//     }
-//   }
+  std::cout << Colors::BOLD << Colors::RED
+            << "\n-------------------------------PARSED-AST--------------------"
+               "------------------\n"
+            << Colors::RESET << std::endl;
 
-//   std::cout << Colors::BOLD << Colors::RED
-//             << "\n-------------------------------LLVM_IR-----------------------"
-//                "---------------\n"
-//             << Colors::RESET << std::endl;
-//   printIRWithLineNumbers(cc.Module.get());
+  // --- Parsing ---
+  Parser parser(program, "MYMODULE", diag);
+  auto astNodes = parser.Parse();
 
-//   std::cout << Colors::BOLD << Colors::RED
-//             << "\n-------------------------------COMPILED_OUTPUT---------------"
-//                "-----------------------\n"
-//             << Colors::RESET << std::endl;
+  // std::cout << "AST Nodes:\n";
+  // for (auto &v : astNodes) {
+  //   std::cout << v->repr() << std::endl;
+  // }
 
-//   saveIRAndCompile(cc.Module.get(), "output");
+  auto &cc = parser.getCodegenContext();
+  for (auto &v : astNodes) {
+    try {
+      v->codegen(cc);
+    } catch (const std::exception &e) {
+      std::cerr << "Codegen error: " << e.what() << std::endl;
+    }
+  }
 
-//   return 0;
-// }
+  std::cout << Colors::BOLD << Colors::RED
+            << "\n-------------------------------LLVM_IR-----------------------"
+               "---------------\n"
+            << Colors::RESET << std::endl;
+  printIRWithLineNumbers(cc.Module.get());
+
+  std::cout << Colors::BOLD << Colors::RED
+            << "\n-------------------------------COMPILED_OUTPUT---------------"
+               "-----------------------\n"
+            << Colors::RESET << std::endl;
+
+  saveIRAndCompile(cc.Module.get(), "output");
+  return 0;
+}
