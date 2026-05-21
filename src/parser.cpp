@@ -226,8 +226,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
                                          std::move(args));
   } else if (Peek().type == ANDPERCENT) {
     Consume();
-    Token name = Expect(IDENTIFIER);
-    return std::make_unique<PointerReferenceNode>(name.value);
+    return std::make_unique<PointerReferenceNode>(ParseExpression());
 
   } else if (Peek().type == STAR) {
 
@@ -680,6 +679,7 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
 //   // --- Source Code to Compile ---
 //   std::string src = R"(
 
+<<<<<<< HEAD
 //   struct Person [
 // 	name:Char*, 
 // 	age:Integer
@@ -706,6 +706,32 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
 
 // 		return 0;
 // 	}
+=======
+  struct Person [
+	name:Char*,
+	age:Integer
+  ];
+  func age(p:Person*) -> Void {
+	let a:Integer = p->age;	
+
+	if a > 18 {
+		let s:Char[4] = "18+\n";
+		@Syscall(1, 1, &s, 4);
+	} else {
+		let s:Char[4] = "18-\n";
+		@Syscall(1, 1, &s, 4);
+	}
+  }
+
+	func main() -> Integer {
+		let s:Char[13] = "hello world\n";
+		let p:Person;
+		p.name = &s;	
+		p.age = 1;
+		age(&p);
+		return 0;
+	}
+>>>>>>> again
 
 // )";
 

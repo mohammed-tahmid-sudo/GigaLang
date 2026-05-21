@@ -27,6 +27,7 @@
 #include <llvm-18/llvm/Support/raw_ostream.h>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <strings.h>
 #include <vector>
 
@@ -227,19 +228,11 @@ CodegenResults FunctionNode::codegen(CodegenContext &cc) {
     cc.Builder->CreateStore(&arg, alloca);
 
     llvm::Type *pointeeType = nullptr;
-    if (argType->isPointerTy()) {
-      auto &ctx = *cc.TheContext;
-      if (declaredType == llvm::PointerType::get(llvm::Type::getInt8Ty(ctx), 0))
-        pointeeType = llvm::Type::getInt8Ty(ctx);
-      else if (declaredType ==
-               llvm::PointerType::get(llvm::Type::getInt32Ty(ctx), 0))
-        pointeeType = llvm::Type::getInt32Ty(ctx);
-      else if (declaredType ==
-               llvm::PointerType::get(llvm::Type::getFloatTy(ctx), 0))
-        pointeeType = llvm::Type::getFloatTy(ctx);
-      else if (declaredType ==
-               llvm::PointerType::get(llvm::Type::getInt1Ty(ctx), 0))
-        pointeeType = llvm::Type::getInt1Ty(ctx);
+
+    if (std::get<1>(args[i - 1]).ptrdepth > 0) {
+      pointeeType = GetTypeNonVoid(Token{std::get<1>(args[i - 1]).type,
+                                         std::get<1>(args[i - 1]).value, 0},
+                                   cc);
     }
 
     cc.addVariable(argName, alloca, argType, pointeeType);
@@ -270,7 +263,8 @@ CodegenResults VariableReferenceNode::codegen(CodegenContext &cc) {
   VWT ptr = cc.lookupVariable(Name); // pointer
 
   if (!ptr.val) {
-    throw std::runtime_error("VariableReferenceNode Cannot find Variable named: " + Name);
+    throw std::runtime_error(
+        "VariableReferenceNode Cannot find Variable named: " + Name);
   }
 
   // if (!ptr.val){
@@ -754,16 +748,12 @@ CodegenResults SyscallNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults PointerReferenceNode::codegen(CodegenContext &cc) {
-  VWT var = cc.lookupVariable(name);
-  if (!var.val)
+  CodegenResults var = name->codegen(cc);
+  if (!var.ActualValue) {
     throw std::runtime_error("CANNOT FIND VALUE ");
-  // CodegenResults var = name->codegen(cc);
-  // if (!var.ActualValue) {
-  //   throw std::runtime_error("CANNOT FIND VALUE ");
-  // }
-  // return {var.ActualValueButAsAPointer, var.ActualValueButAsAPointer,
-  //         var.ActualType, var.ActualTypeButNotThePointer};
-  return {var.val, var.val, var.type, var.elementType};
+  }
+  return {var.ActualValueButAsAPointer, var.ActualValueButAsAPointer,
+          var.ActualType, var.ActualTypeButNotThePointer};
 }
 
 CodegenResults DeReferenceNode::codegen(CodegenContext &cc) {
@@ -920,11 +910,94 @@ CodegenResults FieldAccessNode::codegen(CodegenContext &cc) {
 
   auto loaded = cc.Builder->CreateLoad(FieldType, gep);
 
-  return {loaded, gep, BASE.ActualType, BASE.ActualTypeButNotThePointer};
+  // return {loaded, gep, BASE.ActualType, BASE.ActualTypeButNotThePointer};
+  llvm::Type *NoPtr = nullptr;
+
+  if (FieldType->isPointerTy()) {
+
+    if (auto ST =
+            llvm::dyn_cast<llvm::StructType>(BASE.ActualTypeButNotThePointer)) {
+
+      auto it = cc.StructsToPair.find(ST);
+
+      if (it != cc.StructsToPair.end()) {
+        for (auto &x : it->second) {
+          if (std::get<0>(x) == name) {
+            NoPtr = std::get<2>(x);
+
+            if (NoPtr->isPointerTy())
+              NoPtr = nullptr;
+
+            break;
+          }
+        }
+      }
+    }
+
+  } else {
+    NoPtr = FieldType;
+  }
+
+  return {loaded, gep, FieldType, NoPtr};
 }
 
 CodegenResults PointerFieldAccessNode::codegen(CodegenContext &cc) {
-  return {nullptr, nullptr, nullptr, nullptr};
+  CodegenResults BASE = base->codegen(cc);
+
+  llvm::Value *BasePtr = BASE.ActualValue;
+
+  if (!BasePtr || !BasePtr->getType()->isPointerTy()) {
+    throw std::runtime_error("PointerFieldAccess: base is not a pointer value");
+  }
+
+  llvm::Type *PointeeTy = BASE.ActualTypeButNotThePointer;
+  if (!PointeeTy) {
+    throw std::runtime_error("PointerFieldAccess: base pointee type is null");
+  }
+
+  auto ST = llvm::dyn_cast<llvm::StructType>(PointeeTy);
+  if (!ST) {
+    throw std::runtime_error(
+        "PointerFieldAccess: field access on non-struct pointer");
+  }
+
+  auto it = cc.StructsToPair.find(ST);
+  if (it == cc.StructsToPair.end()) {
+    throw std::runtime_error("PointerFieldAccess: unknown struct type");
+  }
+
+  const auto &PairList = it->second;
+
+  size_t index = (size_t)-1;
+  llvm::Type *FieldType = nullptr;
+
+  for (auto &x : PairList) {
+    if (std::get<0>(x) == name) {
+      index = std::get<1>(x);
+      FieldType = std::get<2>(x);
+      break;
+    }
+  }
+
+  if (index == (size_t)-1) {
+    std::cerr << "Available Fields\n";
+    for (auto &x : PairList) {
+      std::cout << std::get<0>(x) << "\n";
+    }
+    throw std::runtime_error("Invalid field: " + name);
+  }
+
+  llvm::Value *gep = cc.Builder->CreateStructGEP(ST, BasePtr, index);
+  llvm::Value *loaded = cc.Builder->CreateLoad(FieldType, gep);
+
+  llvm::Type *NoPtr = nullptr;
+  if (FieldType->isPointerTy()) {
+    NoPtr = nullptr;
+  } else {
+    NoPtr = FieldType;
+  }
+
+  return {loaded, gep, FieldType, NoPtr};
 }
 
 // int main() {
