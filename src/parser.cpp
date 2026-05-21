@@ -226,8 +226,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
                                          std::move(args));
   } else if (Peek().type == ANDPERCENT) {
     Consume();
-    Token name = Expect(IDENTIFIER);
-    return std::make_unique<PointerReferenceNode>(name.value);
+    return std::make_unique<PointerReferenceNode>(ParseExpression());
 
   } else if (Peek().type == STAR) {
 
@@ -681,29 +680,27 @@ int main() {
   std::string src = R"(
 
   struct Person [
-	name:Char*, 
+	name:Char*,
 	age:Integer
   ];
+  func age(p:Person*) -> Void {
+	let a:Integer = p->age;	
 
-  struct ManyPPL [
-	p:Person
-  ];
-
+	if a > 18 {
+		let s:Char[4] = "18+\n";
+		@Syscall(1, 1, &s, 4);
+	} else {
+		let s:Char[4] = "18-\n";
+		@Syscall(1, 1, &s, 4);
+	}
+  }
 
 	func main() -> Integer {
-		let person:Person;
-		let s:Char[8] = "tahmid\n";
-		person.name = &s; 
-		person.age = 1234;
-
-		let people:ManyPPL;
-		people.p = person;
-
-		let store:Person = people.p;
-		@Syscall(1, 1, store.name, 8 );
-		// let s:Char[13] = "hello world\n";
-		// @Syscall(1, 1, &s, 12);
-
+		let s:Char[13] = "hello world\n";
+		let p:Person;
+		p.name = &s;	
+		p.age = 1;
+		age(&p);
 		return 0;
 	}
 
