@@ -46,6 +46,7 @@ llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc) {
 
 llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
   llvm::Type *retTy;
+
   if (type.type == IDENTIFIER) {
     retTy = cc.lookupStruct(type.value);
 
@@ -66,7 +67,10 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
       retTy = llvm::Type::getInt1Ty(*cc.TheContext);
     } else if (t == "CHAR") {
       retTy = llvm::Type::getInt8Ty(*cc.TheContext);
+    } else if (t == "VOID" && type.ptrdepth > 0) {
+      retTy = llvm::PointerType::get(*cc.TheContext, 0);
     }
+
   } else {
     throw std::runtime_error("INVALID TYPE: " + type.value);
   }
@@ -86,8 +90,11 @@ llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
   for (char &c : holder)
     c = toupper(c);
 
-  if (holder == "VOID")
+  if (holder == "VOID") {
+    if (type.ptrdepth > 0)
+      return llvm::PointerType::get(*cc.TheContext, 0);
     return llvm::Type::getVoidTy(*cc.TheContext);
+  }
 
   return GetTypeNonVoid(type, cc);
 }
@@ -494,6 +501,35 @@ CodegenResults BinaryOperationNode::codegen(CodegenContext &cc) {
 
     return {result, nullptr, llvm::Type::getInt1Ty(*cc.TheContext),
             llvm::Type::getInt1Ty(*cc.TheContext)};
+  }
+
+  case TokenType::BITOR: {
+
+    if (!LT->isIntegerTy() || !RT->isIntegerTy()) {
+      throw std::runtime_error("Bitwise OR requires integer operands");
+    }
+
+    auto *i32 = llvm::Type::getInt32Ty(*cc.TheContext);
+
+    if (LT->isIntegerTy(1))
+      LHS = cc.Builder->CreateIntCast(LHS, i32, false);
+    if (RT->isIntegerTy(1))
+      RHS = cc.Builder->CreateIntCast(RHS, i32, false);
+
+    LT = LHS->getType();
+    RT = RHS->getType();
+
+    if (LT != RT) {
+      if (LT->isIntegerTy() && RT->isIntegerTy()) {
+        RHS = cc.Builder->CreateIntCast(RHS, LT, false);
+      } else {
+        throw std::runtime_error("Cannot bitwise OR incompatible types");
+      }
+    }
+
+    llvm::Value *result = cc.Builder->CreateOr(LHS, RHS, "ortmp");
+
+    return {result, nullptr, LT, LT};
   }
 
   default:

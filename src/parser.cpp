@@ -314,7 +314,8 @@ std::unique_ptr<ast> Parser::ParseComparison() {
   std::unique_ptr<ast> left = ParseAddSub();
   while (Peek().type == TokenType::GT || Peek().type == TokenType::GTE ||
          Peek().type == TokenType::LT || Peek().type == TokenType::LTE ||
-         Peek().type == TokenType::EQEQ || Peek().type == NOTEQ) {
+         Peek().type == TokenType::EQEQ || Peek().type == NOTEQ ||
+         Peek().type == BITOR) {
     TokenType type = Peek().type;
     Consume();
     std::unique_ptr<ast> right = ParseAddSub();
@@ -441,12 +442,16 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
     }
   }
   Expect(RPAREN);
-  Expect(DASHGREATER);
   Token rettype;
-  if (Peek().type == TYPES) {
-    rettype = Expect(TYPES);
-  } else if (Peek().type == IDENTIFIER) {
-    rettype = Expect(IDENTIFIER);
+  if (Peek().type != DASHGREATER) {
+    rettype = {TYPES, "VOID"};
+  } else {
+    Expect(DASHGREATER);
+    if (Peek().type == TYPES) {
+      rettype = Expect(TYPES);
+    } else if (Peek().type == IDENTIFIER) {
+      rettype = Expect(IDENTIFIER);
+    }
   }
 
   std::unique_ptr<ast> block = ParseStatement();
@@ -679,30 +684,6 @@ int main() {
   // --- Source Code to Compile ---
   std::string src = R"(
 
-  struct Person [
-	name:Char*,
-	age:Integer
-  ];
-  func age(p:Person*) -> Void {
-	let a:Integer = p->age;	
-
-	if a > 18 {
-		let s:Char[4] = "18+\n";
-		@Syscall(1, 1, &s, 4);
-	} else {
-		let s:Char[4] = "18-\n";
-		@Syscall(1, 1, &s, 4);
-	}
-  }
-
-	func main() -> Integer {
-		let s:Char[13] = "hello world\n";
-		let p:Person;
-		p.name = &s;	
-		p.age = 1;
-		age(&p);
-		return 0;
-	}
 
 )";
 
