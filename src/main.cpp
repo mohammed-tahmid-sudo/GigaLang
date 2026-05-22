@@ -1,216 +1,216 @@
-#include <Diagnosis.h>
-#include <ast.h>
-#include <fstream>
-#include <iostream>
-#include <lexer.h>
-#include <parser.h>
-#include <sstream>
-#include <string>
-#include <vector>
+// #include <Diagnosis.h>
+// #include <ast.h>
+// #include <fstream>
+// #include <iostream>
+// #include <lexer.h>
+// #include <parser.h>
+// #include <sstream>
+// #include <string>
+// #include <vector>
 
-#include "llvm/TargetParser/Host.h"
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/LegacyPassManager.h>
-#include <llvm/IR/Module.h>
-#include <llvm/MC/TargetRegistry.h>
-#include <llvm/Support/FileSystem.h>
-#include <llvm/Support/TargetSelect.h>
-#include <llvm/Support/raw_ostream.h>
-#include <llvm/Target/TargetMachine.h>
-#include <llvm/TargetParser/Host.h>
+// #include "llvm/TargetParser/Host.h"
+// #include <llvm/IR/LLVMContext.h>
+// #include <llvm/IR/LegacyPassManager.h>
+// #include <llvm/IR/Module.h>
+// #include <llvm/MC/TargetRegistry.h>
+// #include <llvm/Support/FileSystem.h>
+// #include <llvm/Support/TargetSelect.h>
+// #include <llvm/Support/raw_ostream.h>
+// #include <llvm/Target/TargetMachine.h>
+// #include <llvm/TargetParser/Host.h>
 
-struct Options {
-  std::string inputFile;
-  std::string outputName = "output";
+// struct Options {
+//   std::string inputFile;
+//   std::string outputName = "output";
 
-  bool printIR = false;
-  bool emitIR = false;
-  bool emitASM = false;
-  bool emitObj = false;
-  bool buildExe = true;
-};
+//   bool printIR = false;
+//   bool emitIR = false;
+//   bool emitASM = false;
+//   bool emitObj = false;
+//   bool buildExe = true;
+// };
 
-Options parseArgs(int argc, char **argv) {
-  Options opt;
+// Options parseArgs(int argc, char **argv) {
+//   Options opt;
 
-  if (argc < 2)
-    throw std::runtime_error("Usage: ./myprogram <file> [options]");
+//   if (argc < 2)
+//     throw std::runtime_error("Usage: ./myprogram <file> [options]");
 
-  opt.inputFile = argv[1];
+//   opt.inputFile = argv[1];
 
-  for (int i = 2; i < argc; i++) {
-    std::string arg = argv[i];
+//   for (int i = 2; i < argc; i++) {
+//     std::string arg = argv[i];
 
-    if (arg == "-ir") {
-      opt.printIR = true;
-      opt.buildExe = false;
+//     if (arg == "-ir") {
+//       opt.printIR = true;
+//       opt.buildExe = false;
 
-    } else if (arg == "--emit-ir") {
-      opt.emitIR = true;
-      opt.buildExe = false;
-      if (i + 1 < argc)
-        opt.outputName = argv[++i];
+//     } else if (arg == "--emit-ir") {
+//       opt.emitIR = true;
+//       opt.buildExe = false;
+//       if (i + 1 < argc)
+//         opt.outputName = argv[++i];
 
-    } else if (arg == "--emit-asm") {
-      opt.emitASM = true;
-      opt.buildExe = false;
-      if (i + 1 < argc)
-        opt.outputName = argv[++i];
+//     } else if (arg == "--emit-asm") {
+//       opt.emitASM = true;
+//       opt.buildExe = false;
+//       if (i + 1 < argc)
+//         opt.outputName = argv[++i];
 
-    } else if (arg == "--emit-obj") {
-      opt.emitObj = true;
-      opt.buildExe = false;
-      if (i + 1 < argc)
-        opt.outputName = argv[++i];
+//     } else if (arg == "--emit-obj") {
+//       opt.emitObj = true;
+//       opt.buildExe = false;
+//       if (i + 1 < argc)
+//         opt.outputName = argv[++i];
 
-    } else if (arg == "-o") {
-      if (i + 1 < argc)
-        opt.outputName = argv[++i];
-    }
-  }
+//     } else if (arg == "-o") {
+//       if (i + 1 < argc)
+//         opt.outputName = argv[++i];
+//     }
+//   }
 
-  return opt;
-}
+//   return opt;
+// }
 
-std::string readFile(const std::string &path) {
-  std::ifstream file(path);
-  if (!file.is_open())
-    throw std::runtime_error("Cannot open file");
+// std::string readFile(const std::string &path) {
+//   std::ifstream file(path);
+//   if (!file.is_open())
+//     throw std::runtime_error("Cannot open file");
 
-  std::stringstream ss;
-  ss << file.rdbuf();
-  return ss.str();
-}
+//   std::stringstream ss;
+//   ss << file.rdbuf();
+//   return ss.str();
+// }
 
-void emitIR(llvm::Module *module, const std::string &file) {
-  std::error_code EC;
-  llvm::raw_fd_ostream out(file, EC, llvm::sys::fs::OF_None);
-  if (EC)
-    throw std::runtime_error(EC.message());
+// void emitIR(llvm::Module *module, const std::string &file) {
+//   std::error_code EC;
+//   llvm::raw_fd_ostream out(file, EC, llvm::sys::fs::OF_None);
+//   if (EC)
+//     throw std::runtime_error(EC.message());
 
-  module->print(out, nullptr);
-}
+//   module->print(out, nullptr);
+// }
 
-static llvm::TargetMachine *createTargetMachine(llvm::Module *module) {
-  llvm::InitializeNativeTarget();
-  llvm::InitializeNativeTargetAsmPrinter();
-  llvm::InitializeNativeTargetAsmParser();
+// static llvm::TargetMachine *createTargetMachine(llvm::Module *module) {
+//   llvm::InitializeNativeTarget();
+//   llvm::InitializeNativeTargetAsmPrinter();
+//   llvm::InitializeNativeTargetAsmParser();
 
-  std::string triple = llvm::sys::getDefaultTargetTriple();
-  module->setTargetTriple(triple);
+//   std::string triple = llvm::sys::getDefaultTargetTriple();
+//   module->setTargetTriple(triple);
 
-  std::string err;
-  auto target = llvm::TargetRegistry::lookupTarget(triple, err);
-  if (!target)
-    throw std::runtime_error(err);
+//   std::string err;
+//   auto target = llvm::TargetRegistry::lookupTarget(triple, err);
+//   if (!target)
+//     throw std::runtime_error(err);
 
-  llvm::TargetOptions opt;
-  auto RM = std::optional<llvm::Reloc::Model>();
+//   llvm::TargetOptions opt;
+//   auto RM = std::optional<llvm::Reloc::Model>();
 
-  auto tm = target->createTargetMachine(triple, "generic", "", opt, RM);
+//   auto tm = target->createTargetMachine(triple, "generic", "", opt, RM);
 
-  module->setDataLayout(tm->createDataLayout());
-  return tm;
-}
+//   module->setDataLayout(tm->createDataLayout());
+//   return tm;
+// }
 
-void emitASM(llvm::Module *module, const std::string &file) {
-  auto tm = createTargetMachine(module);
+// void emitASM(llvm::Module *module, const std::string &file) {
+//   auto tm = createTargetMachine(module);
 
-  std::error_code EC;
-  llvm::raw_fd_ostream out(file, EC, llvm::sys::fs::OF_None);
-  if (EC)
-    throw std::runtime_error(EC.message());
+//   std::error_code EC;
+//   llvm::raw_fd_ostream out(file, EC, llvm::sys::fs::OF_None);
+//   if (EC)
+//     throw std::runtime_error(EC.message());
 
-  llvm::legacy::PassManager pass;
-  if (tm->addPassesToEmitFile(pass, out, nullptr,
-                              llvm::CodeGenFileType::AssemblyFile))
-    throw std::runtime_error("ASM emission failed");
+//   llvm::legacy::PassManager pass;
+//   if (tm->addPassesToEmitFile(pass, out, nullptr,
+//                               llvm::CodeGenFileType::AssemblyFile))
+//     throw std::runtime_error("ASM emission failed");
 
-  pass.run(*module);
-}
+//   pass.run(*module);
+// }
 
-void emitObject(llvm::Module *module, const std::string &file) {
-  auto tm = createTargetMachine(module);
+// void emitObject(llvm::Module *module, const std::string &file) {
+//   auto tm = createTargetMachine(module);
 
-  std::error_code EC;
-  llvm::raw_fd_ostream out(file, EC, llvm::sys::fs::OF_None);
-  if (EC)
-    throw std::runtime_error(EC.message());
+//   std::error_code EC;
+//   llvm::raw_fd_ostream out(file, EC, llvm::sys::fs::OF_None);
+//   if (EC)
+//     throw std::runtime_error(EC.message());
 
-  llvm::legacy::PassManager pass;
-  if (tm->addPassesToEmitFile(pass, out, nullptr,
-                              llvm::CodeGenFileType::ObjectFile))
-    throw std::runtime_error("Object emission failed");
+//   llvm::legacy::PassManager pass;
+//   if (tm->addPassesToEmitFile(pass, out, nullptr,
+//                               llvm::CodeGenFileType::ObjectFile))
+//     throw std::runtime_error("Object emission failed");
 
-  pass.run(*module);
-}
+//   pass.run(*module);
+// }
 
-void linkExe(const std::string &obj, const std::string &exe) {
-  std::string cmd = "clang " + obj + " -o " + exe;
-  if (system(cmd.c_str()) != 0)
-    throw std::runtime_error("link failed");
-}
+// void linkExe(const std::string &obj, const std::string &exe) {
+//   std::string cmd = "clang " + obj + " -o " + exe;
+//   if (system(cmd.c_str()) != 0)
+//     throw std::runtime_error("link failed");
+// }
 
-int main(int argc, char **argv) {
-  try {
-    Options opt = parseArgs(argc, argv);
+// int main(int argc, char **argv) {
+//   try {
+//     Options opt = parseArgs(argc, argv);
 
-    std::string src = readFile(opt.inputFile);
+//     std::string src = readFile(opt.inputFile);
 
-    std::vector<std::string> lines;
-    std::istringstream ss(src);
-    std::string line;
-    while (std::getline(ss, line))
-      lines.push_back(line);
+//     std::vector<std::string> lines;
+//     std::istringstream ss(src);
+//     std::string line;
+//     while (std::getline(ss, line))
+//       lines.push_back(line);
 
-    Diagnostics diag(lines);
+//     Diagnostics diag(lines);
 
-    Lexer lexer(src);
-    auto program = lexer.lexer();
+//     Lexer lexer(src);
+//     auto program = lexer.lexer();
 
-    Parser parser(program, "MYMODULE", diag);
-    auto ast = parser.Parse();
+//     Parser parser(program, "MYMODULE", diag);
+//     auto ast = parser.Parse();
 
-    auto &cc = parser.getCodegenContext();
+//     auto &cc = parser.getCodegenContext();
 
-    for (auto &n : ast)
-      n->codegen(cc);
+//     for (auto &n : ast)
+//       n->codegen(cc);
 
-    llvm::Module *module = cc.Module.get();
+//     llvm::Module *module = cc.Module.get();
 
-    if (opt.printIR) {
-      module->print(llvm::outs(), nullptr);
-      return 0;
-    }
+//     if (opt.printIR) {
+//       module->print(llvm::outs(), nullptr);
+//       return 0;
+//     }
 
-    std::string base = opt.outputName;
-    std::string irFile = base + ".ll";
-    std::string asmFile = base + ".s";
-    std::string objFile = base + ".o";
+//     std::string base = opt.outputName;
+//     std::string irFile = base + ".ll";
+//     std::string asmFile = base + ".s";
+//     std::string objFile = base + ".o";
 
-    emitIR(module, irFile);
+//     emitIR(module, irFile);
 
-    if (opt.emitIR)
-      return 0;
+//     if (opt.emitIR)
+//       return 0;
 
-    if (opt.emitASM) {
-      emitASM(module, asmFile);
-      return 0;
-    }
+//     if (opt.emitASM) {
+//       emitASM(module, asmFile);
+//       return 0;
+//     }
 
-    if (opt.emitObj) {
-      emitObject(module, objFile);
-      return 0;
-    }
+//     if (opt.emitObj) {
+//       emitObject(module, objFile);
+//       return 0;
+//     }
 
-    // full pipeline
-    emitObject(module, objFile);
-    linkExe(objFile, base);
+//     // full pipeline
+//     emitObject(module, objFile);
+//     linkExe(objFile, base);
 
-    std::cout << "Built: " << base << "\n";
+//     std::cout << "Built: " << base << "\n";
 
-  } catch (const std::exception &e) {
-    std::cerr << e.what() << "\n";
-    return 1;
-  }
-}
+//   } catch (const std::exception &e) {
+//     std::cerr << e.what() << "\n";
+//     return 1;
+//   }
+// }
