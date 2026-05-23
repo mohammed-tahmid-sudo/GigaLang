@@ -875,6 +875,8 @@ CodegenResults CastNode::codegen(CodegenContext &cc) {
 
 CodegenResults StructCreateNode::codegen(CodegenContext &cc) {
   llvm::StructType *TheStruct = llvm::StructType::create(*cc.TheContext, name);
+  cc.addStruct(name, TheStruct,
+               std::vector<std::tuple<std::string, size_t, llvm::Type *>>());
   std::vector<llvm::Type *> fieldTypes;
   fieldTypes.reserve(types.size());
 

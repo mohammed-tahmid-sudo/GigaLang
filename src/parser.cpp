@@ -683,8 +683,88 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
 int main() {
   // --- Source Code to Compile ---
   std::string src = R"(
+  struct node [
+    key:Char*,
+    value:Integer,
+    next:node*
+];
+
+func hash(s:Char*) -> Integer {
+    let n:Integer = 0;
+
+    while (*s) {
+        n = n * 21 + *s;
+        s = s + 1;
+    }
+
+    return n - (255 * (n / 255));
+}
+
+struct pool [
+    data:node[1024],
+    used:Integer
+];
+
+func alloc_node(p:pool*) -> node* {
+    let n:node* = &p->data[p->used];
+    p->used = p->used + 1;
+    return n;
+}
+func map_set(key:Char*, value:Integer, table:node*[255], p:pool*) {
+    let idx:Integer = hash(key);
+
+    let cur:node* = table[idx];
+
+    while (cur != 0) {
+        if (cur->key == key) {
+            cur->value = value;
+            return;
+        }
+        cur = cur->next;
+    }
+
+    let new_node:node* = alloc_node(p);
+
+    new_node->key = key;
+    new_node->value = value;
+    new_node->next = table[idx];
+
+    table[idx] = new_node;
+}
 
 
+func map_get(key:Char*, table:node*[255]) -> Integer {
+    let idx:Integer = hash(key);
+
+    let cur:node* = table[idx];
+
+    while (cur != 0) {
+        if (cur->key == key) {
+            return cur->value;
+        }
+        cur = cur->next;
+    }
+
+    return 0;
+}
+
+func main() -> Integer {
+    let table:node*[255];
+
+    let i:Integer = 0;
+    while (i < 255) {
+        table[i] = 0;
+        i = i + 1;
+    }
+
+    let p:pool;
+    p.used = 0;
+
+    map_set("age", 15, table, &p);
+    map_set("age", 20, table, &p);
+
+    return map_get("age", table);
+}
 )";
 
   std::vector<std::string> sourceLines;
