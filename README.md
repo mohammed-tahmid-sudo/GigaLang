@@ -62,13 +62,10 @@ arg_list        ::= expr { "," expr }
 // Conditionals
 if_stmt         ::= "if" expr "{" { statement ";" } "}" [ "else" "{" { statement ";" } "}" ]
 
-// Loops
-for_stmt ::= "for" "(" (var_decl | assignment) ";"
-                         expr ";"
-                         assignment ")"
-              "{" { statement ";" } "}"
-
 while_stmt      ::= "while" expr "{" { statement ";" } "}"
+
+// Structs 
+struct_stmt     ::= "struct" name "[" Name:type "," ... "];"
 
 // Identifiers and literals
 identifier      ::= letter { letter | digit | "_" }

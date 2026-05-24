@@ -97,21 +97,24 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     return std::make_unique<BooleanNode>(false);
 
   } else if (Peek().type == STRING_LITERAL) {
-    std::string val = Peek().value;
-    Consume();
-    if (val.size() == 1) {
-      return std::make_unique<CharNode>(val[0]);
-    }
+    // std::string val = Peek().value;
+    // Consume();
+    // if (val.size() == 1) {
+    //   return std::make_unique<CharNode>(val[0]);
+    // }
 
-    std::vector<std::unique_ptr<ast>> outputs;
-    for (auto &tok : val) {
-      outputs.push_back(std::make_unique<CharNode>(tok));
-    }
-    if (!outputs.empty() &&
-        static_cast<CharNode *>(outputs.back().get())->val != '\0') {
-      outputs.push_back(std::make_unique<CharNode>(0));
-    }
-    return std::make_unique<ArrayLiteralNode>(std::move(outputs));
+    // std::vector<std::unique_ptr<ast>> outputs;
+    // for (auto &tok : val) {
+    //   outputs.push_back(std::make_unique<CharNode>(tok));
+    // }
+    // if (!outputs.empty() &&
+    //     static_cast<CharNode *>(outputs.back().get())->val != '\0') {
+    //   outputs.push_back(std::make_unique<CharNode>(0));
+    // }
+    // return std::make_unique<ArrayLiteralNode>(std::move(outputs));
+    std::string value = Peek().value;
+    Consume();
+    return std::make_unique<StringNode>(value);
   }
 
   else if (Peek().type == TokenType::LPAREN) {
@@ -314,7 +317,8 @@ std::unique_ptr<ast> Parser::ParseComparison() {
   std::unique_ptr<ast> left = ParseAddSub();
   while (Peek().type == TokenType::GT || Peek().type == TokenType::GTE ||
          Peek().type == TokenType::LT || Peek().type == TokenType::LTE ||
-         Peek().type == TokenType::EQEQ || Peek().type == NOTEQ) {
+         Peek().type == TokenType::EQEQ || Peek().type == NOTEQ ||
+         Peek().type == BITOR) {
     TokenType type = Peek().type;
     Consume();
     std::unique_ptr<ast> right = ParseAddSub();
@@ -441,12 +445,16 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
     }
   }
   Expect(RPAREN);
-  Expect(DASHGREATER);
   Token rettype;
-  if (Peek().type == TYPES) {
-    rettype = Expect(TYPES);
-  } else if (Peek().type == IDENTIFIER) {
-    rettype = Expect(IDENTIFIER);
+  if (Peek().type != DASHGREATER) {
+    rettype = {TYPES, "VOID"};
+  } else {
+    Expect(DASHGREATER);
+    if (Peek().type == TYPES) {
+      rettype = Expect(TYPES);
+    } else if (Peek().type == IDENTIFIER) {
+      rettype = Expect(IDENTIFIER);
+    }
   }
 
   std::unique_ptr<ast> block = ParseStatement();
@@ -666,7 +674,7 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
   }
 
   std::string exeFile = filename + "_exec";
-  std::string clangCmd = "clang " + objFile + " -o " + exeFile;
+  std::string clangCmd = "clang " + objFile + " -no-pie -o " + exeFile;
   if (system(clangCmd.c_str()) != 0) {
     std::cerr << "Error running clang" << std::endl;
     return;
@@ -677,6 +685,7 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
 
 int main() {
   std::string src = R"(
+<<<<<<< HEAD
   struct Person [
 	name:Char*, 
 	age:Integer
@@ -706,6 +715,12 @@ int main() {
 		age(&p);
 		return 0;
 	}
+=======
+  func main() -> Integer {
+	@Syscall(1, 1, "hello world\n", 12);
+	return 0;
+  }
+>>>>>>> again
 )";
 
   std::vector<std::string> sourceLines;

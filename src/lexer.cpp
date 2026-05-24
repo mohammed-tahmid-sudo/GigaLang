@@ -2,7 +2,6 @@
 #include <cctype>
 #include <colors.h>
 #include <cstdio>
-#include <iomanip>
 #include <lexer.h>
 #include <string>
 #include <vector>
@@ -35,6 +34,7 @@ void Lexer::skipWhiwSpace() {
 }
 
 std::vector<Token> Lexer::lexer() {
+
   std::vector<Token> out;
 
   while (true) {
@@ -333,6 +333,16 @@ std::vector<Token> Lexer::lexer() {
       continue;
     }
 
+    auto isUnaryMinus = [&]() -> bool {
+      if (out.empty())
+        return true;
+
+      TokenType prev = out.back().type;
+
+      return prev == LPAREN || prev == EQ || prev == COLON || prev == COMMA ||
+             prev == LET || prev == RETURN || prev == IF || prev == ELSE ||
+             prev == FOR || prev == WHILE;
+    };
     // Single-char operators
     switch (c) {
     case '+':
@@ -344,9 +354,36 @@ std::vector<Token> Lexer::lexer() {
       out.push_back(make(DOT, ".", 0));
       break;
     case '-':
-      Consume();
-      out.push_back(make(MINUS, "-", 0));
+      if (std::isdigit(PeekNext()) && isUnaryMinus()) {
+        Consume(); // consume '-'
+
+        std::string num = "-";
+
+        while (std::isdigit(Peek())) {
+          num += Peek();
+          Consume();
+        }
+
+        if (Peek() == '.' && std::isdigit(PeekNext())) {
+          num += Peek();
+          Consume();
+          while (std::isdigit(Peek())) {
+            num += Peek();
+            Consume();
+          }
+          out.push_back(make(FLOAT_LITERAL, num, 0));
+        } else {
+          out.push_back(make(INT_LITERAL, num, 0));
+        }
+      } else {
+        Consume();
+        out.push_back(make(MINUS, "-", 0));
+      }
       break;
+
+      // Consume();
+      // out.push_back(make(MINUS, "-", 0));
+      // break;
     case '*':
       Consume();
       out.push_back(make(STAR, "*", 0));
@@ -406,6 +443,11 @@ std::vector<Token> Lexer::lexer() {
     case '&':
       Consume();
       out.push_back(make(ANDPERCENT, "&", 0));
+      break;
+
+    case '|':
+      Consume();
+      out.push_back(make(BITOR, "|", 0));
       break;
     default:
       Consume();
@@ -564,7 +606,8 @@ const char *tokenName(TokenType t) {
 //   };
 
 //   let something:RandomStruct* {
-	
+//   |
+
 //   }
 
 //   )";
@@ -578,7 +621,8 @@ const char *tokenName(TokenType t) {
 //   int stmtNo = 0;
 //   for (const auto &stmt : program) {
 //     std::cout << "  " << std::setw(12) << tokenName(stmt.type) << " : '"
-//               << stmt.value << " PointerDepth=" << std::to_string(stmt.ptrdepth)
+//               << stmt.value << " PointerDepth=" <<
+//               std::to_string(stmt.ptrdepth)
 //               << "'\n";
 //   }
 // }

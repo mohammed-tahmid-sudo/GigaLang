@@ -94,6 +94,12 @@ struct CharNode : ast {
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
+struct StringNode : ast {
+  std::string val;
+  StringNode(const std::string &value) : val(value) {}
+  CodegenResults codegen(CodegenContext &cc) override;
+};
+
 struct IntegerNode : ast {
   int val;
   IntegerNode(const int v) : val(v) {}

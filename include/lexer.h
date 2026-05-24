@@ -47,6 +47,7 @@ enum TokenType {
   GTE,
   AND,
   OR,
+  BITOR,
   DOT,
   // Punctuation
   LPAREN,

@@ -8,6 +8,7 @@
 #include <iostream>
 #include <llvm-18/llvm/ADT/ArrayRef.h>
 #include <llvm-18/llvm/ADT/STLExtras.h>
+#include <llvm-18/llvm/ADT/StringMap.h>
 #include <llvm-18/llvm/IR/BasicBlock.h>
 #include <llvm-18/llvm/IR/Constant.h>
 #include <llvm-18/llvm/IR/Constants.h>
@@ -15,6 +16,8 @@
 #include <llvm-18/llvm/IR/DiagnosticHandler.h>
 #include <llvm-18/llvm/IR/FMF.h>
 #include <llvm-18/llvm/IR/Function.h>
+#include <llvm-18/llvm/IR/GlobalValue.h>
+#include <llvm-18/llvm/IR/GlobalVariable.h>
 #include <llvm-18/llvm/IR/Instructions.h>
 #include <llvm-18/llvm/IR/Intrinsics.h>
 #include <llvm-18/llvm/IR/LLVMContext.h>
@@ -46,6 +49,7 @@ llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc) {
 
 llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
   llvm::Type *retTy;
+
   if (type.type == IDENTIFIER) {
     retTy = cc.lookupStruct(type.value);
 
@@ -66,7 +70,10 @@ llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
       retTy = llvm::Type::getInt1Ty(*cc.TheContext);
     } else if (t == "CHAR") {
       retTy = llvm::Type::getInt8Ty(*cc.TheContext);
+    } else if (t == "VOID" && type.ptrdepth > 0) {
+      retTy = llvm::PointerType::get(*cc.TheContext, 0);
     }
+
   } else {
     throw std::runtime_error("INVALID TYPE: " + type.value);
   }
@@ -86,8 +93,11 @@ llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
   for (char &c : holder)
     c = toupper(c);
 
-  if (holder == "VOID")
+  if (holder == "VOID") {
+    if (type.ptrdepth > 0)
+      return llvm::PointerType::get(*cc.TheContext, 0);
     return llvm::Type::getVoidTy(*cc.TheContext);
+  }
 
   return GetTypeNonVoid(type, cc);
 }
@@ -96,6 +106,22 @@ CodegenResults CharNode::codegen(CodegenContext &cc) {
   return {
       llvm::ConstantInt::get(llvm::Type::getInt8Ty(*cc.TheContext), val, false),
       nullptr, llvm::Type::getInt8Ty(*cc.TheContext), nullptr};
+}
+
+CodegenResults StringNode::codegen(CodegenContext &cc) {
+  auto stringConstant = llvm::ConstantDataArray::getString(*cc.TheContext, val);
+
+  auto *strGlobal = new llvm::GlobalVariable(
+      *cc.Module, stringConstant->getType(), true,
+      llvm::GlobalValue::PrivateLinkage, stringConstant, ".str");
+
+  // i8* pointer to first character
+  llvm::Value *zero =
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(*cc.TheContext), 0);
+
+  llvm::Value *strPtr = cc.Builder->CreateInBoundsGEP(stringConstant->getType(),
+                                                      strGlobal, {zero, zero});
+  return {strPtr, strGlobal, strPtr->getType(), strGlobal->getType()};
 }
 
 CodegenResults IntegerNode::codegen(CodegenContext &cc) {
@@ -496,6 +522,35 @@ CodegenResults BinaryOperationNode::codegen(CodegenContext &cc) {
             llvm::Type::getInt1Ty(*cc.TheContext)};
   }
 
+  case TokenType::BITOR: {
+
+    if (!LT->isIntegerTy() || !RT->isIntegerTy()) {
+      throw std::runtime_error("Bitwise OR requires integer operands");
+    }
+
+    auto *i32 = llvm::Type::getInt32Ty(*cc.TheContext);
+
+    if (LT->isIntegerTy(1))
+      LHS = cc.Builder->CreateIntCast(LHS, i32, false);
+    if (RT->isIntegerTy(1))
+      RHS = cc.Builder->CreateIntCast(RHS, i32, false);
+
+    LT = LHS->getType();
+    RT = RHS->getType();
+
+    if (LT != RT) {
+      if (LT->isIntegerTy() && RT->isIntegerTy()) {
+        RHS = cc.Builder->CreateIntCast(RHS, LT, false);
+      } else {
+        throw std::runtime_error("Cannot bitwise OR incompatible types");
+      }
+    }
+
+    llvm::Value *result = cc.Builder->CreateOr(LHS, RHS, "ortmp");
+
+    return {result, nullptr, LT, LT};
+  }
+
   default:
     throw std::runtime_error("Unknown binary operator");
   }
@@ -839,6 +894,8 @@ CodegenResults CastNode::codegen(CodegenContext &cc) {
 
 CodegenResults StructCreateNode::codegen(CodegenContext &cc) {
   llvm::StructType *TheStruct = llvm::StructType::create(*cc.TheContext, name);
+  cc.addStruct(name, TheStruct,
+               std::vector<std::tuple<std::string, size_t, llvm::Type *>>());
   std::vector<llvm::Type *> fieldTypes;
   fieldTypes.reserve(types.size());
 
@@ -999,78 +1056,3 @@ CodegenResults PointerFieldAccessNode::codegen(CodegenContext &cc) {
 
   return {loaded, gep, FieldType, NoPtr};
 }
-
-// int main() {
-//   CodegenContext ctx("myprogram");
-//   ctx.pushScope(); // Start Global Scope
-
-//   // --- First compound for "random" function ---
-//   std::vector<std::unique_ptr<ast>> vals;
-
-//   vals.push_back(std::make_unique<VariableDeclareNode>(
-//       "val2", std::make_unique<VariableReferenceNode>("val1"),
-//       Token{TokenType::TYPES, "INTEGER"}));
-
-//   vals.push_back(std::make_unique<WhileNode>(
-//       std::make_unique<VariableReferenceNode>("val2"),
-//       std::make_unique<ContinueNode>()));
-
-//   vals.push_back(std::make_unique<IfNode>(
-//       std::make_unique<VariableReferenceNode>("val2"),
-//       std::make_unique<IntegerNode>(21),
-//       std::make_unique<IntegerNode>(32)));
-
-//   vals.push_back(
-//       std::make_unique<ReturnNode>(std::make_unique<BinaryOperationNode>(
-//           TokenType::GTE,
-//           std::make_unique<VariableReferenceNode>("val1"),
-//           std::make_unique<VariableReferenceNode>("val2"))));
-
-//   auto compoundRandom = std::make_unique<CompoundNode>(std::move(vals));
-
-//   std::vector<std::pair<std::string, llvm::Type *>> typeRandom = {
-//       {"val1", llvm::Type::getInt32Ty(*ctx.TheContext)}};
-
-//   auto RandomFunction = std::make_unique<FunctionNode>(
-//       "random", typeRandom, std::move(compoundRandom),
-//       Token{TokenType::TYPES, "INTEGER"});
-
-//   // --- Second compound for "main" function ---
-//   std::vector<std::unique_ptr<ast>> anothervals;
-
-//   anothervals.push_back(std::make_unique<VariableDeclareNode>(
-//       "val1", std::make_unique<IntegerNode>(21),
-//       Token{TokenType::TYPES, "INTEGER"}));
-
-//   // Prepare arguments vector separately to move unique_ptrs
-//   std::vector<std::unique_ptr<ast>> callArgs;
-//   callArgs.push_back(std::make_unique<VariableReferenceNode>("val1"));
-
-//   anothervals.push_back(
-//       std::make_unique<CallNode>("random", std::move(callArgs)));
-
-//   std::vector<std::unique_ptr<ast>> elements;
-//   elements.push_back(std::make_unique<CharNode>('a'));
-//   elements.push_back(std::make_unique<CharNode>('b'));
-//   elements.push_back(std::make_unique<CharNode>('c'));
-
-//   anothervals.push_back(std::make_unique<ArrayLiteralNode>(
-//       llvm::Type::getInt32Ty(*ctx.TheContext), std::move(elements)));
-
-//   auto anotherCompound =
-//   std::make_unique<CompoundNode>(std::move(anothervals));
-
-//   auto Function = std::make_unique<FunctionNode>(
-//       "main", typeRandom, std::move(anotherCompound),
-//       Token{TokenType::TYPES, "INTEGER"});
-
-//   // --- Codegen ---
-
-//   RandomFunction->codegen(ctx);
-//   Function->codegen(ctx);
-
-//   ctx.Module->print(llvm::errs(), nullptr);
-
-//   ctx.popScope(); // End Global Scope
-//   return 0;
-// }
