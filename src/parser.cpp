@@ -685,42 +685,10 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
 
 int main() {
   std::string src = R"(
-<<<<<<< HEAD
-  struct Person [
-	name:Char*, 
-	age:Integer
-  ];
-
-  struct Person [
-	name:Char*,
-	age:Integer
-  ];
-  func age(p:Person*) -> Void {
-	let a:Integer = p->age;	
-
-	if a > 18 {
-		let s:Char[4] = "18+\n";
-		@Syscall(1, 1, &s, 4);
-	} else {
-		let s:Char[4] = "18-\n";
-		@Syscall(1, 1, &s, 4);
-	}
-  }
-
-	func main() -> Integer {
-		let s:Char[13] = "hello world\n";
-		let p:Person;
-		p.name = &s;	
-		p.age = 1;
-		age(&p);
-		return 0;
-	}
-=======
   func main() -> Integer {
 	@Syscall(1, 1, "hello world\n", 12);
 	return 0;
   }
->>>>>>> again
 )";
 
   std::vector<std::string> sourceLines;
