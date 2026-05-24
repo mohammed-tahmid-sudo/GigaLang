@@ -2,7 +2,7 @@
 #include <string>
 
 
-enum class TypeKind {
+enum  TypeKind {
   Integer,
   Float,
   Boolean,

@@ -102,6 +102,7 @@ llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
   return GetTypeNonVoid(type, cc);
 }
 
+
 CodegenResults CharNode::codegen(CodegenContext &cc) {
   return {
       llvm::ConstantInt::get(llvm::Type::getInt8Ty(*cc.TheContext), val, false),
