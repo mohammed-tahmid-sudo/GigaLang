@@ -683,73 +683,73 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
   std::cout << "Executable created: " << exeFile << std::endl;
 }
 
-int main() {
-  std::string src = R"(
-  func main() -> Integer {
-	@Syscall(1, 1, "hello world\n", 12);
-	return 0;
-  }
-)";
+// int main() {
+//   std::string src = R"(
+//   func main() -> Integer {
+// 	@Syscall(1, 1, "hello world\n", 12);
+// 	return 0;
+//   }
+// )";
 
-  std::vector<std::string> sourceLines;
-  {
-    std::istringstream ss(src);
-    std::string line;
-    while (std::getline(ss, line))
-      sourceLines.push_back(line);
-  }
+//   std::vector<std::string> sourceLines;
+//   {
+//     std::istringstream ss(src);
+//     std::string line;
+//     while (std::getline(ss, line))
+//       sourceLines.push_back(line);
+//   }
 
-  Diagnostics diag(sourceLines);
+//   Diagnostics diag(sourceLines);
 
-  // --- Lexical Analysis ---
-  Lexer lexer(src);
-  auto program = lexer.lexer();
+//   // --- Lexical Analysis ---
+//   Lexer lexer(src);
+//   auto program = lexer.lexer();
 
-  std::cout << "Tokens:\n";
-  int count = 0;
-  for (const auto &stmt : program) {
-    std::cout << tokenName(stmt.type) << ":'" << stmt.value << "'  ";
-    count++;
-    if (count % 5 == 0) // 5 tokens per line
-      std::cout << "\n";
-  }
-  if (count % 5 != 0)
-    std::cout << "\n"; // print final newline if needed
+//   std::cout << "Tokens:\n";
+//   int count = 0;
+//   for (const auto &stmt : program) {
+//     std::cout << tokenName(stmt.type) << ":'" << stmt.value << "'  ";
+//     count++;
+//     if (count % 5 == 0) // 5 tokens per line
+//       std::cout << "\n";
+//   }
+//   if (count % 5 != 0)
+//     std::cout << "\n"; // print final newline if needed
 
-  std::cout << Colors::BOLD << Colors::RED
-            << "\n-------------------------------PARSED-AST--------------------"
-               "------------------\n"
-            << Colors::RESET << std::endl;
+//   std::cout << Colors::BOLD << Colors::RED
+//             << "\n-------------------------------PARSED-AST--------------------"
+//                "------------------\n"
+//             << Colors::RESET << std::endl;
 
-  // --- Parsing ---
-  Parser parser(program, "MYMODULE", diag);
-  auto astNodes = parser.Parse();
+//   // --- Parsing ---
+//   Parser parser(program, "MYMODULE", diag);
+//   auto astNodes = parser.Parse();
 
-  // std::cout << "AST Nodes:\n";
-  // for (auto &v : astNodes) {
-  //   std::cout << v->repr() << std::endl;
-  // }
+//   // std::cout << "AST Nodes:\n";
+//   // for (auto &v : astNodes) {
+//   //   std::cout << v->repr() << std::endl;
+//   // }
 
-  auto &cc = parser.getCodegenContext();
-  for (auto &v : astNodes) {
-    try {
-      v->codegen(cc);
-    } catch (const std::exception &e) {
-      std::cerr << "Codegen error: " << e.what() << std::endl;
-    }
-  }
+//   auto &cc = parser.getCodegenContext();
+//   for (auto &v : astNodes) {
+//     try {
+//       v->codegen(cc);
+//     } catch (const std::exception &e) {
+//       std::cerr << "Codegen error: " << e.what() << std::endl;
+//     }
+//   }
 
-  std::cout << Colors::BOLD << Colors::RED
-            << "\n-------------------------------LLVM_IR-----------------------"
-               "---------------\n"
-            << Colors::RESET << std::endl;
-  printIRWithLineNumbers(cc.Module.get());
+//   std::cout << Colors::BOLD << Colors::RED
+//             << "\n-------------------------------LLVM_IR-----------------------"
+//                "---------------\n"
+//             << Colors::RESET << std::endl;
+//   printIRWithLineNumbers(cc.Module.get());
 
-  std::cout << Colors::BOLD << Colors::RED
-            << "\n-------------------------------COMPILED_OUTPUT---------------"
-               "-----------------------\n"
-            << Colors::RESET << std::endl;
+//   std::cout << Colors::BOLD << Colors::RED
+//             << "\n-------------------------------COMPILED_OUTPUT---------------"
+//                "-----------------------\n"
+//             << Colors::RESET << std::endl;
 
-  saveIRAndCompile(cc.Module.get(), "output");
-  return 0;
-}
+//   saveIRAndCompile(cc.Module.get(), "output");
+//   return 0;
+// }
