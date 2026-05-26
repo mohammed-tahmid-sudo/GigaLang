@@ -1,4 +1,5 @@
 #include "lexer.h"
+#include "types.h"
 #include "llvm/IR/InlineAsm.h"
 #include <alloca.h>
 #include <ast.h>
@@ -32,6 +33,7 @@
 #include <stdexcept>
 #include <string>
 #include <strings.h>
+#include <types.h>
 #include <vector>
 
 llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc) {
@@ -143,7 +145,7 @@ CodegenResults BooleanNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
-  llvm::Type *elementType = GetTypeNonVoid(Type, cc);
+  llvm::Type *elementType = ComputeType(type, cc);
   llvm::AllocaInst *alloca = nullptr;
   llvm::Type *finalType = elementType;
 
@@ -163,7 +165,7 @@ CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
     }
   }
 
-  llvm::Type *elemType = GetTypeNonVoid(Type, cc);
+  llvm::Type *elemType = ComputeType(type, cc);
 
   if (arraySize.has_value()) {
     finalType = llvm::ArrayType::get(elemType, arraySize.value());
@@ -230,9 +232,9 @@ CodegenResults CompoundNode::codegen(CodegenContext &cc) {
 CodegenResults FunctionNode::codegen(CodegenContext &cc) {
   std::vector<llvm::Type *> argTypes;
   for (auto &a : args)
-    argTypes.push_back(GetTypeNonVoid(std::get<1>(a), cc)); // was a.second
+    argTypes.push_back(ComputeType(std::get<1>(a), cc));
 
-  llvm::Type *retTy = GetTypeVoid(ReturnType, cc);
+  llvm::Type *retTy = ComputeType(ReturnType, cc);
   auto *FT = llvm::FunctionType::get(retTy, argTypes, isVaridic);
   auto *Fn = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, name,
                                     cc.Module.get());
@@ -243,10 +245,9 @@ CodegenResults FunctionNode::codegen(CodegenContext &cc) {
 
   unsigned i = 0;
   for (auto &arg : Fn->args()) {
-    const auto &argName = std::get<0>(args[i]); // was args[i].first
-    llvm::Type *declaredType =
-        GetTypeNonVoid(std::get<1>(args[i]), cc); // was args[i].second
-    i++;
+    // Access current index safely before incrementing
+    const auto &argName = std::get<0>(args[i]);
+    SystemType &argTypeSpec = std::get<1>(args[i]);
 
     arg.setName(argName);
     llvm::Type *argType = arg.getType();
@@ -255,13 +256,23 @@ CodegenResults FunctionNode::codegen(CodegenContext &cc) {
 
     llvm::Type *pointeeType = nullptr;
 
-    if (std::get<1>(args[i - 1]).ptrdepth > 0) {
-      pointeeType = GetTypeNonVoid(Token{std::get<1>(args[i - 1]).type,
-                                         std::get<1>(args[i - 1]).value, 0},
-                                   cc);
+    if (argTypeSpec.is_ptr || argTypeSpec.ptrdepth > 0) {
+      SystemType underlyingType = argTypeSpec;
+
+      underlyingType.is_ptr = false;
+
+      if (underlyingType.ptrdepth > 0) {
+        underlyingType.ptrdepth--;
+      }
+
+      underlyingType.theLLvmtType = nullptr;
+
+      pointeeType = ComputeType(underlyingType, cc);
     }
 
     cc.addVariable(argName, alloca, argType, pointeeType);
+
+    i++;
   }
 
   CodegenResults retVal = content->codegen(cc);
@@ -887,9 +898,9 @@ llvm::Value *castValue(llvm::IRBuilder<> &builder, llvm::Value *val,
 
 CodegenResults CastNode::codegen(CodegenContext &cc) {
   CodegenResults v = Value->codegen(cc);
-  return {castValue(*cc.Builder, v.ActualValue, GetTypeNonVoid(targetType, cc),
-                    true),
-          nullptr, v.ActualType, v.ActualTypeButNotThePointer};
+  return {
+      castValue(*cc.Builder, v.ActualValue, ComputeType(targetType, cc), true),
+      nullptr, v.ActualType, v.ActualTypeButNotThePointer};
 }
 
 CodegenResults StructCreateNode::codegen(CodegenContext &cc) {
@@ -902,7 +913,8 @@ CodegenResults StructCreateNode::codegen(CodegenContext &cc) {
   std::vector<std::tuple<std::string, size_t, llvm::Type *>> indexs;
   size_t i = 0;
   for (const auto &p : types) {
-    auto *type = GetTypeNonVoid(p.second, cc);
+    SystemType mutableType = p.second;
+    auto type = ComputeType(mutableType, cc);
     fieldTypes.push_back(type);
     indexs.push_back({p.first, i, type});
     i++;

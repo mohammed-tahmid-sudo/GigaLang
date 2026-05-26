@@ -359,7 +359,7 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
   Token name = Expect(TokenType::IDENTIFIER);
 
   Expect(TokenType::COLON);
-  Token type;
+  SystemType type;
 
   if (Peek().type == TokenType::TYPES) {
     type = Expect(TokenType::TYPES);

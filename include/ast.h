@@ -1,4 +1,5 @@
 #pragma once
+
 #include "lexer.h"
 #include <llvm-18/llvm/IR/DerivedTypes.h>
 #include <llvm-18/llvm/IR/IRBuilder.h>
@@ -7,76 +8,12 @@
 #include <llvm-18/llvm/IR/Value.h>
 #include <llvm-18/llvm/Support/Endian.h>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <strings.h>
+#include <types.h>
 #include <utility>
+#include <utils.h>
 #include <vector>
-
-struct CodegenResults {
-  llvm::Value *ActualValue;
-  llvm::Value *ActualValueButAsAPointer;
-  llvm::Type *ActualType;
-  llvm::Type *ActualTypeButNotThePointer;
-};
-
-struct VWT {
-  llvm::Value *val;
-  llvm::Type *type;
-  llvm::Type *elementType;
-};
-
-struct CodegenContext {
-  std::unique_ptr<llvm::LLVMContext> TheContext;
-  std::unique_ptr<llvm::IRBuilder<>> Builder;
-  std::unique_ptr<llvm::Module> Module;
-  std::vector<std::unordered_map<std::string, VWT>> NamedValuesStack;
-  std::unordered_map<std::string, llvm::StructType *> StringToStructs;
-  std::unordered_map<llvm::StructType *,
-                     std::vector<std::tuple<std::string, size_t, llvm::Type *>>>
-      StructsToPair;
-  llvm::BasicBlock *BreakBB = nullptr;
-  llvm::BasicBlock *ContinueBB = nullptr;
-
-  // Scopes
-  void pushScope() { NamedValuesStack.push_back({}); }
-  void popScope() { NamedValuesStack.pop_back(); }
-
-  void addVariable(const std::string &name, llvm::Value *value,
-                   llvm::Type *Type, llvm::Type *elemenType) {
-    NamedValuesStack.back()[name] = VWT{value, Type, elemenType};
-  }
-
-  void
-  addStruct(const std::string &name, llvm::StructType *Type,
-            std::vector<std::tuple<std::string, size_t, llvm::Type *>> Pairs) {
-    StringToStructs[name] = Type;
-    StructsToPair[Type] = Pairs;
-    return;
-  }
-
-  VWT lookupVariable(const std::string &name) {
-    for (auto it = NamedValuesStack.rbegin(); it != NamedValuesStack.rend();
-         ++it)
-      if (it->count(name))
-        return (*it)[name];
-    return {nullptr, nullptr, nullptr};
-  }
-
-  llvm::StructType *lookupStruct(const std::string &name) {
-    auto it = StringToStructs.find(name);
-    if (it != StringToStructs.end()) {
-      return it->second;
-    } else {
-      throw std::runtime_error("Unable TO find Value Called: " + name);
-    }
-  }
-
-  CodegenContext(const std::string &name)
-      : TheContext(std::make_unique<llvm::LLVMContext>()),
-        Builder(std::make_unique<llvm::IRBuilder<>>(*TheContext)),
-        Module(std::make_unique<llvm::Module>(name, *TheContext)) {}
-};
 
 llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc);
 llvm::Type *GetTypeVoid(Token type, CodegenContext &cc);
@@ -127,12 +64,12 @@ struct BooleanNode : ast {
 
 struct VariableDeclareNode : ast {
   std::string name;
-  Token Type;
+  SystemType type;
   std::unique_ptr<ast> val;          // can be single value or ArrayLiteralNode
   std::optional<unsigned> arraySize; // new: size if it's an array
-  VariableDeclareNode(const std::string &n, std::unique_ptr<ast> v, Token t,
-                      std::optional<unsigned> size = 1)
-      : name(n), val(std::move(v)), Type(t), arraySize(size) {}
+  VariableDeclareNode(const std::string &n, std::unique_ptr<ast> v,
+                      SystemType t, std::optional<unsigned> size = 1)
+      : name(n), val(std::move(v)), type(t), arraySize(size) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
@@ -161,14 +98,14 @@ struct CompoundNode : ast {
 
 struct FunctionNode : ast {
   std::string name;
-  std::vector<std::tuple<std::string, Token>> args;
+  std::vector<std::tuple<std::string, SystemType>> args;
   bool isVaridic;
   std::unique_ptr<ast> content;
-  Token ReturnType;
+  SystemType ReturnType;
 
   FunctionNode(const std::string &s,
-               std::vector<std::tuple<std::string, Token>> ars,
-               std::unique_ptr<ast> cntnt, Token RetType, bool varidic)
+               std::vector<std::tuple<std::string, SystemType>> ars,
+               std::unique_ptr<ast> cntnt, SystemType RetType, bool varidic)
       : name(s), args(ars), content(std::move(cntnt)), ReturnType(RetType),
         isVaridic(varidic) {}
 
@@ -251,7 +188,6 @@ struct ForNode : ast {
 };
 
 struct ArrayLiteralNode : ast {
-  // Token ElementType;
   std::vector<std::unique_ptr<ast>> Elements;
 
   ArrayLiteralNode(std::vector<std::unique_ptr<ast>> elements)
@@ -306,19 +242,19 @@ struct DeReferenceNode : ast {
 
 struct CastNode : ast {
   std::unique_ptr<ast> Value;
-  Token targetType;
+  SystemType targetType;
 
-  CastNode(std::unique_ptr<ast> V, Token type)
+  CastNode(std::unique_ptr<ast> V, SystemType type)
       : Value(std::move(V)), targetType(type) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
 struct StructCreateNode : ast {
-  std::unordered_map<std::string, Token> types;
+  std::unordered_map<std::string, SystemType> types;
   std::string name;
   StructCreateNode(const std::string &s,
-                   std::unordered_map<std::string, Token> tps)
+                   std::unordered_map<std::string, SystemType> tps)
       : name(s), types(std::move(tps)) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
