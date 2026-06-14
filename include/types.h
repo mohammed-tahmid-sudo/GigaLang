@@ -16,7 +16,7 @@ enum TypeKind {
 };
 
 struct SystemType {
-  TypeKind kind;
+  TypeKind kind = VOID;
   bool is_ptr = false;
   size_t ptrdepth = 0;
 
@@ -25,18 +25,7 @@ struct SystemType {
 
   std::string struct_name;
 
-  llvm::Type *theLLvmtType = nullptr;
 };
 
 llvm::Type *ComputeType(SystemType &type, CodegenContext &cc);
-
-void TurnTokenToType(SystemType type, Token token) {
-  switch (token.type) {
-  case IDENTIFIER:
-    type.kind = TypeKind::STRUCTTY;
-    break;
-  case TYPES: {
-  }
-  }
-  return;
-}
+void TurnTokenToType(SystemType& type, const Token& token);

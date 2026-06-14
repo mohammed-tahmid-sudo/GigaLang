@@ -1,16 +1,15 @@
 #include "ast.h"
+#include <iostream>
 #include <llvm-18/llvm/IR/DerivedTypes.h>
 #include <llvm-18/llvm/IR/Metadata.h>
 #include <types.h>
 
-llvm::Type *ComputeType(SystemType &type, CodegenContext &cc) {
-  if (type.theLLvmtType) {
-    return type.theLLvmtType;
-  }
-
+llvm::Type *ComputeType(SystemType &type, CodegenContext &cc)
+{
   llvm::Type *theLLvmType = nullptr;
 
-  switch (type.kind) {
+  switch (type.kind)
+  {
   case INTEGER:
     theLLvmType = llvm::Type::getInt32Ty(*cc.TheContext);
     break;
@@ -31,18 +30,72 @@ llvm::Type *ComputeType(SystemType &type, CodegenContext &cc) {
     break;
   }
 
-  // 1. Wrap as an array first if needed
-  if (type.is_arr) {
+  if (type.is_arr)
+  {
     theLLvmType = llvm::ArrayType::get(theLLvmType, type.size_arr);
   }
 
-  // 2. Wrap as a pointer last.
-  // In LLVM 18+, any pointer depth collapses into a single generic 'ptr'
-  if (type.is_ptr || type.ptrdepth > 0) {
+  if (type.is_ptr || type.ptrdepth > 0)
+  {
     theLLvmType = llvm::PointerType::get(*cc.TheContext, 0);
   }
 
-  type.theLLvmtType = theLLvmType;
-
   return theLLvmType;
+}
+
+void TurnTokenToType(SystemType& type, const Token& token)
+{
+    switch (token.type)
+    {
+    case IDENTIFIER:
+        type.kind = TypeKind::STRUCTTY;
+        break;
+
+    case TYPES:
+    {
+        std::string holder = token.value;
+
+        for (char& c : holder)
+        {
+            c = static_cast<char>(
+                std::toupper(static_cast<unsigned char>(c)));
+        }
+
+        if (holder == "INTEGER")
+        {
+            // std::cout << "FOUND INTEGER\n";
+            type.kind = TypeKind::INTEGER;
+        }
+        else if (holder == "FLOAT")
+        {
+            // std::cout << "FOUND FLOAT\n";
+            type.kind = TypeKind::FLOAT;
+        }
+        else if (holder == "CHAR")
+        {
+            // std::cout << "FOUND CHAR\n";
+            type.kind = TypeKind::CHAR;
+        }
+        else if (holder == "BOOLEAN")
+        {
+            // std::cout << "FOUND BOOLEAN\n";
+            type.kind = TypeKind::BOOLEAN;
+        }
+        else if (holder == "VOID")
+        {
+            // std::cout << "FOUND VOID\n";
+            type.kind = TypeKind::VOID;
+        }
+        else
+        {
+            throw std::runtime_error(
+                "Unknown type name: " + token.value);
+        }
+
+        break;
+    }
+
+    default:
+        throw std::runtime_error("Unexpected token type");
+    }
 }

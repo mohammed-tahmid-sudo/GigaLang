@@ -73,14 +73,11 @@ struct Token {
   TokenType type;
   std::string value;
 
-  unsigned ptrdepth = 0;
-
   unsigned line = 0;
   unsigned col = 0;
 
   std::string file = "<input>";
 };
-
 class Lexer {
   std::string input;
   size_t index = 0;

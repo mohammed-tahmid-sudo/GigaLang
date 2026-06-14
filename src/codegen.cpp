@@ -36,73 +36,74 @@
 #include <types.h>
 #include <vector>
 
-llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc) {
-  std::string t = typeToken.value;
-  for (char &c : t)
-    c = toupper(c);
+// ABUNDANT
+// llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc) {
+//   std::string t = typeToken.value;
+//   for (char &c : t)
+//     c = toupper(c);
 
-  if (t.size() > 7 && t.substr(t.size() - 7) == "POINTER") {
-    Token baseToken;
-    baseToken.value = t.substr(0, t.size() - 7); // strip "POINTER"
-    return GetTypeNonVoid(baseToken, cc); // "CHAR" -> i8, "INTEGER" -> i32
-  }
-  return nullptr;
-}
+//   if (t.size() > 7 && t.substr(t.size() - 7) == "POINTER") {
+//     Token baseToken;
+//     baseToken.value = t.substr(0, t.size() - 7); // strip "POINTER"
+//     return GetTypeNonVoid(baseToken, cc); // "CHAR" -> i8, "INTEGER" -> i32
+//   }
+//   return nullptr;
+// }
 
-llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
-  llvm::Type *retTy;
+// llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
+//   llvm::Type *retTy;
 
-  if (type.type == IDENTIFIER) {
-    retTy = cc.lookupStruct(type.value);
+//   if (type.type == IDENTIFIER) {
+//     retTy = cc.lookupStruct(type.value);
 
-  } else if (type.type == TYPES) {
-    std::string t = type.value;
+//   } else if (type.type == TYPES) {
+//     std::string t = type.value;
 
-    for (auto &i : t) {
-      i = toupper(i);
-    }
+//     for (auto &i : t) {
+//       i = toupper(i);
+//     }
 
-    if (t == "INTEGER") {
-      retTy = llvm::Type::getInt32Ty(*cc.TheContext);
-    } else if (t == "FLOAT") {
-      retTy = llvm::Type::getFloatTy(*cc.TheContext);
-    } else if (t == "STRING") {
-      retTy = llvm::Type::getInt8Ty(*cc.TheContext);
-    } else if (t == "BOOLEAN") {
-      retTy = llvm::Type::getInt1Ty(*cc.TheContext);
-    } else if (t == "CHAR") {
-      retTy = llvm::Type::getInt8Ty(*cc.TheContext);
-    } else if (t == "VOID" && type.ptrdepth > 0) {
-      retTy = llvm::PointerType::get(*cc.TheContext, 0);
-    }
+//     if (t == "INTEGER") {
+//       retTy = llvm::Type::getInt32Ty(*cc.TheContext);
+//     } else if (t == "FLOAT") {
+//       retTy = llvm::Type::getFloatTy(*cc.TheContext);
+//     } else if (t == "STRING") {
+//       retTy = llvm::Type::getInt8Ty(*cc.TheContext);
+//     } else if (t == "BOOLEAN") {
+//       retTy = llvm::Type::getInt1Ty(*cc.TheContext);
+//     } else if (t == "CHAR") {
+//       retTy = llvm::Type::getInt8Ty(*cc.TheContext);
+//     } else if (t == "VOID" && type.ptrdepth > 0) {
+//       retTy = llvm::PointerType::get(*cc.TheContext, 0);
+//     }
 
-  } else {
-    throw std::runtime_error("INVALID TYPE: " + type.value);
-  }
+//   } else {
+//     throw std::runtime_error("INVALID TYPE: " + type.value);
+//   }
 
-  // for (int i = type.ptrdepth; i > 0; --i) {
-  //   retTy = llvm::PointerType::get(retTy, 0);
-  // }
-  if (type.ptrdepth > 0) {
-    retTy = llvm::PointerType::get(retTy, 0);
-  }
+//   // for (int i = type.ptrdepth; i > 0; --i) {
+//   //   retTy = llvm::PointerType::get(retTy, 0);
+//   // }
+//   if (type.ptrdepth > 0) {
+//     retTy = llvm::PointerType::get(retTy, 0);
+//   }
 
-  return retTy;
-}
+//   return retTy;
+// }
 
-llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
-  std::string holder = type.value;
-  for (char &c : holder)
-    c = toupper(c);
+// llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
+//   std::string holder = type.value;
+//   for (char &c : holder)
+//     c = toupper(c);
 
-  if (holder == "VOID") {
-    if (type.ptrdepth > 0)
-      return llvm::PointerType::get(*cc.TheContext, 0);
-    return llvm::Type::getVoidTy(*cc.TheContext);
-  }
+//   if (holder == "VOID") {
+//     if (type.ptrdepth > 0)
+//       return llvm::PointerType::get(*cc.TheContext, 0);
+//     return llvm::Type::getVoidTy(*cc.TheContext);
+//   }
 
-  return GetTypeNonVoid(type, cc);
-}
+//   return GetTypeNonVoid(type, cc);
+// }
 
 CodegenResults CharNode::codegen(CodegenContext &cc) {
   return {
@@ -127,6 +128,7 @@ CodegenResults StringNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults IntegerNode::codegen(CodegenContext &cc) {
+  std::cout << "CALLING ME" << std::endl;
   return {
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*cc.TheContext), val, true),
       nullptr, llvm::Type::getInt32Ty(*cc.TheContext), nullptr};
@@ -265,7 +267,7 @@ CodegenResults FunctionNode::codegen(CodegenContext &cc) {
         underlyingType.ptrdepth--;
       }
 
-      underlyingType.theLLvmtType = nullptr;
+      // underlyingType.theLLvmtType = nullptr;
 
       pointeeType = ComputeType(underlyingType, cc);
     }
