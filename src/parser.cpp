@@ -84,6 +84,9 @@ SystemType Parser::ParseType() {
   if (!(Peek().type == IDENTIFIER || Peek().type == TYPES)) {
     throw std::runtime_error("PROBLEM AT COMPUTE TYPE");
   }
+  if (Peek().type == IDENTIFIER) {
+      std::cout <<"sTRUCT NAME: " <<  Peek().value << std::endl;
+  }
 
   TurnTokenToType(output, Peek());
   std::cout << Peek().value << std::endl;
@@ -488,8 +491,6 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable()
     }
   }
 
-  std::cout <<"the value of VariableDeclare " << Peek().value<< std::endl;
-
   Expect(TokenType::SEMICOLON);
 
   return std::make_unique<VariableDeclareNode>(name.value, std::move(val), type,
@@ -841,18 +842,28 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename)
 int main()
 {
   std::string src = R"(
-  struct person [
+  struct Person [
     name:Char*,
     age:Integer
   ];
 
+  func verifyAge(s:Person*) {
+    let age:Integer = s->age;
+    if age > 18 {
+      @Syscall(1, 1, "18+\n", 4);
+    } else {
+      @Syscall(1, 1, "18-\n", 4);
+    }
+  }
+
   func main() -> Integer {
+    let s:Person;
 
-    let s:person;
-    s.name = "hello world";
-    s.age = 232;
+    s.name = "hello world"; 
+    s.age = 12;
 
-  	@Syscall(1, 1, s.name, 12);
+  	// @Syscall(1, 1, s.name, 12);
+    verifyAge(&s);
     return 0;
   }
 )";

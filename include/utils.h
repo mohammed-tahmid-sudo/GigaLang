@@ -67,7 +67,7 @@ struct CodegenContext {
     if (it != StringToStructs.end()) {
       return it->second;
     } else {
-      throw std::runtime_error("Unable TO find Value Called: " + name);
+      throw std::runtime_error("Unable TO find Struct Called: " + name);
     }
   }
 

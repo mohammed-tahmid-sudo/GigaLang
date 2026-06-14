@@ -49,6 +49,7 @@ void TurnTokenToType(SystemType& type, const Token& token)
     {
     case IDENTIFIER:
         type.kind = TypeKind::STRUCTTY;
+        type.struct_name = token.value;
         break;
 
     case TYPES:
