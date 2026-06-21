@@ -1,11 +1,11 @@
 #pragma once
 
-#include <llvm-18/llvm/IR/DerivedTypes.h>
-#include <llvm-18/llvm/IR/IRBuilder.h>
-#include <llvm-18/llvm/IR/LLVMContext.h>
-#include <llvm-18/llvm/IR/Type.h>
-#include <llvm-18/llvm/IR/Value.h>
-#include <llvm-18/llvm/Support/Endian.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IR/Value.h>
+#include <llvm/Support/Endian.h>
 #include <memory>
 #include <stdexcept>
 #include <string>

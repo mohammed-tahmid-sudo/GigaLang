@@ -1,8 +1,8 @@
 #pragma once
 #include <cstddef>
 #include <lexer.h>
-#include <llvm-18/llvm/IR/Intrinsics.h>
-#include <llvm-18/llvm/IR/Type.h>
+#include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/Type.h>
 #include <string>
 #include <utils.h>
 

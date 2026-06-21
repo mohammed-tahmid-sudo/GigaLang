@@ -1,12 +1,12 @@
 #pragma once
 
 #include "lexer.h"
-#include <llvm-18/llvm/IR/DerivedTypes.h>
-#include <llvm-18/llvm/IR/IRBuilder.h>
-#include <llvm-18/llvm/IR/LLVMContext.h>
-#include <llvm-18/llvm/IR/Type.h>
-#include <llvm-18/llvm/IR/Value.h>
-#include <llvm-18/llvm/Support/Endian.h>
+#include <llvm-21/llvm/IR/DerivedTypes.h>
+#include <llvm-21/llvm/IR/IRBuilder.h>
+#include <llvm-21/llvm/IR/LLVMContext.h>
+#include <llvm-21/llvm/IR/Type.h>
+#include <llvm-21/llvm/IR/Value.h>
+#include <llvm-21/llvm/Support/Endian.h>
 #include <memory>
 #include <string>
 #include <strings.h>
