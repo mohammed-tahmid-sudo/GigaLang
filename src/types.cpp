@@ -1,7 +1,7 @@
 #include "ast.h"
 #include <iostream>
-#include <llvm-18/llvm/IR/DerivedTypes.h>
-#include <llvm-18/llvm/IR/Metadata.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Metadata.h>
 #include <types.h>
 
 llvm::Type *ComputeType(SystemType &type, CodegenContext &cc)

@@ -5,6 +5,7 @@
 #include <colors.h>
 #include <cstddef>
 #include <iostream>
+#include <llvm/IR/Module.h>
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/StringMap.h>
@@ -174,12 +175,16 @@ CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
     finalType = elemType;
   }
 
+  auto holder = type;
+  holder.is_ptr = false;
+  llvm::Type *notptr = ComputeType(holder, cc);
+
   cc.addVariable(name, alloca, finalType, elemType);
   return {
       cc.Builder->CreateLoad(finalType, alloca), // ActualValue (the data)
-      alloca,                    // ActualValueButAsAPointer (the address)
-      finalType->getPointerTo(), // ActualType (pointer type)
-      finalType                  // ActualTypeButNotThePointer
+      alloca,    // ActualValueButAsAPointer (the address)
+      finalType, // ActualType (pointer type)
+      notptr     // ActualTypeButNotThePointer
   };
 }
 
