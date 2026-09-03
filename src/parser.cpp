@@ -275,33 +275,49 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   }
 }
 std::unique_ptr<ast> Parser::ParsePointerFileld() {
-  std::unique_ptr<ast> left = ParseFactor();
-  while (Peek().type == DASHGREATER) {
-    Consume();
-    auto right = Expect(IDENTIFIER);
-    left =
-        std::make_unique<PointerFieldAccessNode>(std::move(left), right.value);
-  }
-  return left;
+  // std::unique_ptr<ast> left = ParseFactor();
+  // while (Peek().type == DASHGREATER) {
+  //   Consume();
+  //   auto right = Expect(IDENTIFIER);
+  //   left =
+  //       std::make_unique<PointerFieldAccessNode>(std::move(left), right.value);
+  // }
+  // return left;
+  std::runtime_error("Calling me");
+  return nullptr;
 }
 
-std::unique_ptr<ast> Parser::ParseFileld() {
-  std::unique_ptr<ast> left = ParsePointerFileld();
-  while (Peek().type == DOT) {
-    Consume();
-    auto right = Expect(IDENTIFIER);
-    left = std::make_unique<FieldAccessNode>(std::move(left), right.value);
+std::unique_ptr<ast> Parser::ParseField() {
+  std::unique_ptr<ast> left = ParseFactor();
+  while (Peek().type == DOT || Peek().type == DASHGREATER) {
+     TokenType type = Peek().type;
+        Consume();
+
+        Token right = Expect(IDENTIFIER);
+
+        if (type == DOT) {
+            left = std::make_unique<FieldAccessNode>(
+                std::move(left),
+                right.value
+            );
+        } else {
+            left = std::make_unique<PointerFieldAccessNode>(
+                std::move(left),
+                right.value
+            );
+        }
   }
   return left;
 }
 
 std::unique_ptr<ast> Parser::ParseTerm() {
-  std::unique_ptr<ast> left = ParseFileld();
+  std::unique_ptr<ast> left = ParseField();
   while (Peek().type == TokenType::STAR || Peek().type == TokenType::SLASH) {
     TokenType type = Peek().type;
     Consume();
 
-    std::unique_ptr<ast> right = ParseFactor();
+    // std::unique_ptr<ast> right = ParseFactor();
+    std::unique_ptr<ast> right = ParseField();
 
     if (!right)
       throw std::runtime_error("EXPECTED A NUMBER AFTER * OR /");
@@ -674,7 +690,7 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
   dest.close();
 
   std::string objFile = filename + ".o";
-  std::string llcCmd = "llc " + filename + ".ll -filetype=obj -o " + objFile;
+  std::string llcCmd = "llc-21 " + filename + ".ll -filetype=obj -o " + objFile;
   if (system(llcCmd.c_str()) != 0) {
     std::cerr << "Error running llc" << std::endl;
     return;
@@ -697,14 +713,10 @@ int main() {
     age:Integer
   ];
 
-  func verifyAge(s:Person*) {
-    let age:Integer = s->age;
-    if age > 18 {
-      @Syscall(1, 1, "18+\n", 4);
-    } else {
-      @Syscall(1, 1, "18-\n", 4);
-    }
-  }
+  struct manyppl [
+      p1:Person*, 
+      p2:Person*
+  ];
 
   func main() -> Integer {
     let s:Person;
@@ -712,10 +724,13 @@ int main() {
     s.name = "hello world"; 
     s.age = 12;
 
-	let a:Integer* = (Integer*)( @Syscall(9, 0, 10, 3, 34, -1, 0));
-	@Syscall(11, a, 10)
 
-    verifyAge(&s);
+    let ms:manyppl;
+    ms.p1 = &s;
+    ms.p2 = &s;
+
+
+    @Syscall(1, 1, ms.p1->name, 12);
     return 0;
   }
 )";

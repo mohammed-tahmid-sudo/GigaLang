@@ -26,7 +26,7 @@ public:
 
   std::unique_ptr<ast> ParseFactor();
   std::unique_ptr<ast> ParsePointerFileld();
-  std::unique_ptr<ast> ParseFileld();
+  std::unique_ptr<ast> ParseField();
   std::unique_ptr<ast> ParseAddSub();
   std::unique_ptr<ast> ParseComparison();
   std::unique_ptr<ast> ParseTerm();
