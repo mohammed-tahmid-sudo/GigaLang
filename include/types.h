@@ -1,6 +1,12 @@
+#pragma once
 #include <cstddef>
+#include <lexer.h>
+#include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/Type.h>
 #include <string>
+#include <utils.h>
 
+<<<<<<< HEAD
 
 enum  TypeKind {
   Integer,
@@ -16,20 +22,28 @@ enum  TypeKind {
   Struct,
 
   Unknown
+=======
+enum TypeKind {
+  INTEGER,
+  FLOAT,
+  BOOLEAN,
+  VOID,
+  CHAR,
+  STRUCTTY,
+>>>>>>> again
 };
 
-struct Type {
-  TypeKind kind;
+struct SystemType {
+  TypeKind kind = VOID;
+  bool is_ptr = false;
+  size_t ptrdepth = 0;
 
-  // For arrays/pointers
-  Type *base = nullptr;
+  bool is_arr = false;
+  size_t size_arr = 0;
 
-  // Array info
-  size_t arraySize = 0;
+  std::string struct_name;
 
-  // Pointer info
-  size_t pointerDepth = 0;
-
-  // Struct/class name
-  std::string name;
 };
+
+llvm::Type *ComputeType(SystemType &type, CodegenContext &cc);
+void TurnTokenToType(SystemType& type, const Token& token);

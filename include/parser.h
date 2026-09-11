@@ -14,17 +14,19 @@ public:
       : input(inp), cc(s), diag(diag) {}
   CodegenContext &getCodegenContext() { return cc; }
 
-  // helper
+  // HELPER 
   SourceLoc loc();
 
   Token Peek();
   Token PeekNext();
   Token Consume();
   Token Expect(TokenType tk);
+  SystemType ParseType();
+  // END HELPER
 
   std::unique_ptr<ast> ParseFactor();
   std::unique_ptr<ast> ParsePointerFileld();
-  std::unique_ptr<ast> ParseFileld();
+  std::unique_ptr<ast> ParseField();
   std::unique_ptr<ast> ParseAddSub();
   std::unique_ptr<ast> ParseComparison();
   std::unique_ptr<ast> ParseTerm();

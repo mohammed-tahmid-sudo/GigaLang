@@ -7,24 +7,23 @@
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
-#include <llvm-18/llvm/ADT/STLExtras.h>
-#include <llvm-18/llvm/IR/DerivedTypes.h>
-#include <llvm-18/llvm/IR/InstrTypes.h>
-#include <llvm-18/llvm/IR/Instruction.h>
-#include <llvm-18/llvm/IR/Intrinsics.h>
-#include <llvm-18/llvm/IR/PassManager.h>
-#include <llvm-18/llvm/IR/Type.h>
-#include <llvm-18/llvm/Support/CommandLine.h>
-#include <llvm-18/llvm/Support/Error.h>
-#include <llvm-18/llvm/Support/MathExtras.h>
-#include <llvm-18/llvm/Support/raw_ostream.h>
-#include <llvm-18/llvm/TargetParser/Host.h>
+#include <llvm/ADT/STLExtras.h>
+#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRPrintingPasses.h>
+#include <llvm/IR/InstrTypes.h>
+#include <llvm/IR/Instruction.h>
+#include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/PassManager.h>
+#include <llvm/IR/Type.h>
+#include <llvm/Support/CommandLine.h>
+#include <llvm/Support/Error.h>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/MathExtras.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/TargetParser/Host.h>
 #include <memory>
 #include <parser.h>
 #include <stdexcept>
@@ -69,17 +68,37 @@ SourceLoc Parser::loc() {
   Token t = Peek();
   return {t.file, t.line, t.col};
 }
+
+SystemType Parser::ParseType() {
+  SystemType output;
+  if (!(Peek().type == IDENTIFIER || Peek().type == TYPES)) {
+    throw std::runtime_error("PROBLEM AT COMPUTE TYPE");
+  }
+  if (Peek().type == IDENTIFIER) {
+    std::cout << "sTRUCT NAME: " << Peek().value << std::endl;
+  }
+
+  TurnTokenToType(output, Peek());
+  std::cout << Peek().value << std::endl;
+  Consume();
+  std::cout << Peek().value << std::endl;
+  while (Peek().type == STAR) {
+    output.ptrdepth += 1;
+    Consume();
+  }
+
+  return output;
+}
+
 std::unique_ptr<ast> Parser::ParseFactor() {
   if (Peek().type == TokenType::INT_LITERAL) {
     int val = std::stoi(Peek().value);
     Consume();
     return std::make_unique<IntegerNode>(val);
-
   } else if (Peek().type == TokenType::FLOAT_LITERAL) {
     float val = std::stof(Peek().value);
     Consume();
     return std::make_unique<FloatNode>(val);
-
   } else if (Peek().type == TokenType::BOOLEAN_LITERAL) {
 
     Token tok = Peek();
@@ -95,7 +114,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
 
     Consume();
     return std::make_unique<BooleanNode>(false);
-
   } else if (Peek().type == STRING_LITERAL) {
     // std::string val = Peek().value;
     // Consume();
@@ -120,13 +138,13 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   else if (Peek().type == TokenType::LPAREN) {
     Expect(TokenType::LPAREN);
 
-    if (Peek().type == TYPES) {
-      Token type = Peek();
-      Expect(TYPES);
+    if (Peek().type == TYPES || Peek().type == IDENTIFIER) {
+      SystemType ActualType = ParseType();
+      // Consume();
       Expect(RPAREN);
       auto val = ParseExpression();
 
-      return std::make_unique<CastNode>(std::move(val), type);
+      return std::make_unique<CastNode>(std::move(val), ActualType);
     }
 
     auto val = ParseExpression();
@@ -153,7 +171,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
 
     Expect(TokenType::RBRACKET);
     return std::make_unique<ArrayLiteralNode>(std::move(elements));
-
   } else if (Peek().type == TokenType::IDENTIFIER) {
 
     Token name = Peek();
@@ -187,7 +204,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
       Expect(RBRACKET);
 
       return std::make_unique<ArrayAccessNode>(name.value, std::move(val));
-
     } else {
       return std::make_unique<VariableReferenceNode>(name.value);
     }
@@ -230,7 +246,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   } else if (Peek().type == ANDPERCENT) {
     Consume();
     return std::make_unique<PointerReferenceNode>(ParseExpression());
-
   } else if (Peek().type == STAR) {
 
     Consume();
@@ -248,7 +263,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
       return std::make_unique<DeReferenceNode>(v.value, nullptr);
     }
     return nullptr;
-
   } else {
     if (Peek().type == SEMICOLON) {
       return nullptr;
@@ -261,33 +275,49 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   }
 }
 std::unique_ptr<ast> Parser::ParsePointerFileld() {
-  std::unique_ptr<ast> left = ParseFactor();
-  while (Peek().type == DASHGREATER) {
-    Consume();
-    auto right = Expect(IDENTIFIER);
-    left =
-        std::make_unique<PointerFieldAccessNode>(std::move(left), right.value);
-  }
-  return left;
+  // std::unique_ptr<ast> left = ParseFactor();
+  // while (Peek().type == DASHGREATER) {
+  //   Consume();
+  //   auto right = Expect(IDENTIFIER);
+  //   left =
+  //       std::make_unique<PointerFieldAccessNode>(std::move(left), right.value);
+  // }
+  // return left;
+  std::runtime_error("Calling me");
+  return nullptr;
 }
 
-std::unique_ptr<ast> Parser::ParseFileld() {
-  std::unique_ptr<ast> left = ParsePointerFileld();
-  while (Peek().type == DOT) {
-    Consume();
-    auto right = Expect(IDENTIFIER);
-    left = std::make_unique<FieldAccessNode>(std::move(left), right.value);
+std::unique_ptr<ast> Parser::ParseField() {
+  std::unique_ptr<ast> left = ParseFactor();
+  while (Peek().type == DOT || Peek().type == DASHGREATER) {
+     TokenType type = Peek().type;
+        Consume();
+
+        Token right = Expect(IDENTIFIER);
+
+        if (type == DOT) {
+            left = std::make_unique<FieldAccessNode>(
+                std::move(left),
+                right.value
+            );
+        } else {
+            left = std::make_unique<PointerFieldAccessNode>(
+                std::move(left),
+                right.value
+            );
+        }
   }
   return left;
 }
 
 std::unique_ptr<ast> Parser::ParseTerm() {
-  std::unique_ptr<ast> left = ParseFileld();
+  std::unique_ptr<ast> left = ParseField();
   while (Peek().type == TokenType::STAR || Peek().type == TokenType::SLASH) {
     TokenType type = Peek().type;
     Consume();
 
-    std::unique_ptr<ast> right = ParseFactor();
+    // std::unique_ptr<ast> right = ParseFactor();
+    std::unique_ptr<ast> right = ParseField();
 
     if (!right)
       throw std::runtime_error("EXPECTED A NUMBER AFTER * OR /");
@@ -359,12 +389,10 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
   Token name = Expect(TokenType::IDENTIFIER);
 
   Expect(TokenType::COLON);
-  Token type;
+  SystemType type;
 
-  if (Peek().type == TokenType::TYPES) {
-    type = Expect(TokenType::TYPES);
-  } else if (Peek().type == TokenType::IDENTIFIER) {
-    type = Expect(TokenType::IDENTIFIER);
+  if (Peek().type == TokenType::TYPES || Peek().type == TokenType::IDENTIFIER) {
+    type = ParseType();
   } else {
     throw std::runtime_error("Expected TYPES or IDENTIFIER");
   }
@@ -388,7 +416,7 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
                    "array initializer has " +
                        std::to_string(arrNode->Elements.size()) +
                        "reduce initializer or increase declared size: let x:" +
-                       type.value + "[" +
+                       std::to_string(type.size_arr) + "[" +
                        std::to_string(arrNode->Elements.size()) + "]");
       }
     }
@@ -406,16 +434,14 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
   Token name = Expect(TokenType::IDENTIFIER);
   Expect(LPAREN);
 
-  std::vector<std::tuple<std::string, Token>> args;
+  std::vector<std::tuple<std::string, SystemType>> args;
 
   while (Peek().type != RPAREN) {
     Token paramName = Expect(IDENTIFIER);
     Expect(COLON);
-    Token type;
-    if (Peek().type == TYPES) {
-      type = Expect(TYPES);
-    } else if (Peek().type == IDENTIFIER) {
-      type = Expect(IDENTIFIER);
+    SystemType type;
+    if (Peek().type == TYPES || Peek().type == IDENTIFIER) {
+      type = ParseType();
     }
 
     // llvm::Type *llvmType = GetTypeVoid(type, cc);
@@ -445,15 +471,14 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
     }
   }
   Expect(RPAREN);
-  Token rettype;
+  SystemType rettype;
   if (Peek().type != DASHGREATER) {
-    rettype = {TYPES, "VOID"};
+    rettype.kind = VOID;
   } else {
     Expect(DASHGREATER);
-    if (Peek().type == TYPES) {
-      rettype = Expect(TYPES);
-    } else if (Peek().type == IDENTIFIER) {
-      rettype = Expect(IDENTIFIER);
+    if (Peek().type == TYPES || Peek().type == IDENTIFIER) {
+      std::cout << Peek().value << std::endl;
+      rettype = ParseType();
     }
   }
 
@@ -559,16 +584,14 @@ std::unique_ptr<StructCreateNode> Parser::ParseStruct() {
   Token name = Expect(IDENTIFIER);
   Expect(LBRACKET);
 
-  std::unordered_map<std::string, Token> types;
+  std::unordered_map<std::string, SystemType> types;
   while (Peek().type != RBRACKET) {
     Token identifier = Expect(IDENTIFIER);
     Expect(COLON);
 
-    Token type;
-    if (Peek().type == TYPES) {
-      type = Expect(TYPES);
-    } else if (Peek().type == IDENTIFIER) {
-      type = Expect(IDENTIFIER);
+    SystemType type;
+    if (Peek().type == TYPES || Peek().type == IDENTIFIER) {
+      type = ParseType();
     }
 
     types.emplace(identifier.value, type);
@@ -667,7 +690,7 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
   dest.close();
 
   std::string objFile = filename + ".o";
-  std::string llcCmd = "llc " + filename + ".ll -filetype=obj -o " + objFile;
+  std::string llcCmd = "llc-21 " + filename + ".ll -filetype=obj -o " + objFile;
   if (system(llcCmd.c_str()) != 0) {
     std::cerr << "Error running llc" << std::endl;
     return;

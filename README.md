@@ -35,7 +35,7 @@ var_decl        ::= "let" identifier ":" type "=" expr
 assignment      ::= identifier "=" expr
 
 // Types
-type            ::= "Integer" | "Float" | "Boolean" | identifier | "Void" | "Char" | array_type
+type            ::= "Integer" | "Float" | "Boolean" | identifier | "Void" | "Char" | array_type 
 array_type      ::= type "[" [ integer_literal ] "]"
 
 // Expressions

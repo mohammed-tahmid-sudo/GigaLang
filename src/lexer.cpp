@@ -1,5 +1,6 @@
 #include <ast.h>
 #include <cctype>
+#include <iomanip>
 #include <colors.h>
 #include <cstdio>
 #include <lexer.h>
@@ -66,10 +67,10 @@ std::vector<Token> Lexer::lexer() {
       continue;
     }
 
-    // helper lambda — stamps line/col onto token
+    // Remember Ptrdepth is just abondon
     auto make = [&](TokenType type, std::string value,
                     unsigned ptrdepth) -> Token {
-      return Token{type, std::move(value), ptrdepth, tokLine, tokCol, filename};
+      return Token{type, std::move(value), tokLine, tokCol, filename};
     };
 
     // @directives
@@ -258,21 +259,11 @@ std::vector<Token> Lexer::lexer() {
 
       if (id == "Integer" || id == "Float" || id == "Boolean" ||
           id == "String" || id == "Void" || id == "Char") {
-        unsigned PointerDepth = 0;
-        while (Peek() == '*') {
-          Consume();
-          PointerDepth++;
-        }
-        out.push_back(make(TYPES, id, PointerDepth));
+        out.push_back(make(TYPES, id, 0));
         continue;
       }
-      unsigned PointerDepth = 0;
-      while (Peek() == '*') {
-        Consume();
-        PointerDepth++;
-      }
 
-      out.push_back(make(IDENTIFIER, id, PointerDepth));
+      out.push_back(make(IDENTIFIER, id, 0));
       continue;
     }
 
@@ -456,7 +447,7 @@ std::vector<Token> Lexer::lexer() {
     }
   }
 
-  out.push_back({EOF_TOKEN, "", 0, line, col, filename});
+  out.push_back({EOF_TOKEN, "", line, col, filename});
   return out;
 }
 
@@ -621,8 +612,7 @@ const char *tokenName(TokenType t) {
 //   int stmtNo = 0;
 //   for (const auto &stmt : program) {
 //     std::cout << "  " << std::setw(12) << tokenName(stmt.type) << " : '"
-//               << stmt.value << " PointerDepth=" <<
-//               std::to_string(stmt.ptrdepth)
-//               << "'\n";
+//             << stmt.value << 
+//                "'\n";
 //   }
 // }
