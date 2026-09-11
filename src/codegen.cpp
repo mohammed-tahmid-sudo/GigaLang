@@ -128,7 +128,7 @@ CodegenResults StringNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults IntegerNode::codegen(CodegenContext &cc) {
-  std::cout << "CALLING ME" << std::endl;
+  // std::cout << "CALLING ME" << std::endl;
   return {
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*cc.TheContext), val, true),
       nullptr, llvm::Type::getInt32Ty(*cc.TheContext), nullptr};
@@ -759,6 +759,7 @@ CodegenResults ArrayAccessNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults SyscallNode::codegen(CodegenContext &cc) {
+  std::cout << Colors::RED << "WORK INSIDE SYSCALL" << Colors::RESET << std::endl;
   if (!cc.TheContext || !cc.Builder)
     throw std::runtime_error("SyscallNode: invalid codegen context");
 

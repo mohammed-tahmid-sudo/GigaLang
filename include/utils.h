@@ -13,6 +13,8 @@
 #include <strings.h>
 #include <vector>
 
+extern bool debug_enabled = true;
+
 struct CodegenResults {
   llvm::Value *ActualValue;
   llvm::Value *ActualValueButAsAPointer;
@@ -77,3 +79,7 @@ struct CodegenContext {
         Builder(std::make_unique<llvm::IRBuilder<>>(*TheContext)),
         Module(std::make_unique<llvm::Module>(name, *TheContext)) {}
 };
+
+void show_debug(std::string &msg) {
+  std::cout << Colors::
+}
