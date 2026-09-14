@@ -1,11 +1,13 @@
 #include <iostream>
 #include <lexer.h>
+#include <fstream>
 #include <parser.h>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
@@ -92,8 +94,14 @@ static llvm::TargetMachine *createTargetMachine(llvm::Module *module) {
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
   llvm::InitializeNativeTargetAsmParser();
+  llvm::InitializeAllTargetInfos();
+// llvm::InitializeAllTargets();
+// llvm::InitializeAllTargetMCs();
+// llvm::InitializeAllAsmParsers();
+// llvm::InitializeAllAsmPrinters();
 
-  std::string triple = llvm::sys::getDefaultTargetTriple();
+  std::string tripleStr = llvm::sys::getDefaultTargetTriple();
+ llvm::Triple triple(tripleStr) ;
   module->setTargetTriple(triple);
 
   std::string err;
@@ -210,3 +218,4 @@ int main(int argc, char **argv) {
     std::cerr << e.what() << "\n";
     return 1;
   }
+}

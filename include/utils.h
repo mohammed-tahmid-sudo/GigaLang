@@ -7,13 +7,15 @@
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
 #include <llvm/Support/Endian.h>
+#include <colors.h>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <strings.h>
 #include <vector>
 
-extern bool debug_enabled = true;
+extern bool debug_enabled;
 
 struct CodegenResults {
   llvm::Value *ActualValue;
@@ -80,6 +82,4 @@ struct CodegenContext {
         Module(std::make_unique<llvm::Module>(name, *TheContext)) {}
 };
 
-void show_debug(std::string &msg) {
-  std::cout << Colors::
-}
+void show_debug(std::string &msg); 

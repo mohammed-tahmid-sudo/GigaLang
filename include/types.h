@@ -6,23 +6,6 @@
 #include <string>
 #include <utils.h>
 
-<<<<<<< HEAD
-
-enum  TypeKind {
-  Integer,
-  Float,
-  Boolean,
-  Char,
-  String,
-  Void,
-
-  Array,
-  Pointer,
-  Function,
-  Struct,
-
-  Unknown
-=======
 enum TypeKind {
   INTEGER,
   FLOAT,
@@ -30,7 +13,6 @@ enum TypeKind {
   VOID,
   CHAR,
   STRUCTTY,
->>>>>>> again
 };
 
 struct SystemType {
