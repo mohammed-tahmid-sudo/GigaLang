@@ -1,6 +1,6 @@
+#include <fstream>
 #include <iostream>
 #include <lexer.h>
-#include <fstream>
 #include <parser.h>
 #include <sstream>
 #include <string>
@@ -91,17 +91,13 @@ void emitIR(llvm::Module *module, const std::string &file) {
 }
 
 static llvm::TargetMachine *createTargetMachine(llvm::Module *module) {
+
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
   llvm::InitializeNativeTargetAsmParser();
-  llvm::InitializeAllTargetInfos();
-// llvm::InitializeAllTargets();
-// llvm::InitializeAllTargetMCs();
-// llvm::InitializeAllAsmParsers();
-// llvm::InitializeAllAsmPrinters();
 
   std::string tripleStr = llvm::sys::getDefaultTargetTriple();
- llvm::Triple triple(tripleStr) ;
+  llvm::Triple triple(tripleStr);
   module->setTargetTriple(triple);
 
   std::string err;
