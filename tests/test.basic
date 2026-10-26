@@ -1,2 +1,0 @@
-VAR a = 21 AS INTEGER;
-PRINT(a);
