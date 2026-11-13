@@ -27,12 +27,5 @@ void Parser::Consume() {
 std::vector<std::unique_ptr<ast>> Parser::parse() {
   std::vector<std::unique_ptr<ast>> output;
 
-  if (Peek().Type == NUMBERS) {
-    std::unique_ptr<IntegerNode> val =
-        std::make_unique<IntegerNode>(std::stoi(Peek().Value), true);
-
-    output.push_back(std::move(val));
-  }
-
   return output;
 }

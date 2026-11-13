@@ -4,11 +4,8 @@
 #include <memory>
 #include <utils.h>
 
-std::unique_ptr<SystemType> CreateSystemType(TypeKind kind, size_t size) {
-  // SystemType ret;
-  //
-  // ret.kind = kind;
-  // ret.size = size;
-
-  return std::make_unique<SystemType>(kind, size);
+std::unique_ptr<SystemType> CreateSystemType(TypeKind k, size_t siz, bool ptr,
+                                             size_t depth, bool arr,
+                                             size_t size, std::string nam) {
+  return std::make_unique<SystemType>(k, siz, ptr, depth, arr, size, nam);
 }

@@ -27,5 +27,8 @@ struct CodegenResults {
   std::unique_ptr<SystemType> Type;
 };
 
-std::unique_ptr<SystemType> CreateSystemType(TypeKind kind = SINGED,
-                                             size_t size = 1);
+std::unique_ptr<SystemType> CreateSystemType(TypeKind kind, size_t size = 0,
+                                             bool is_ptr = false,
+                                             size_t ptrdepth = 0,
+
+                                             std::string name = "");
