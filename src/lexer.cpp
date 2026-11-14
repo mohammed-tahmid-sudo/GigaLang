@@ -1,9 +1,10 @@
 #include <ast.h>
 #include <cctype>
-#include <iomanip>
 #include <colors.h>
 #include <cstdio>
+#include <iomanip>
 #include <lexer.h>
+#include <llvm-21/llvm/IR/InlineAsm.h>
 #include <string>
 #include <vector>
 
@@ -67,9 +68,7 @@ std::vector<Token> Lexer::lexer() {
       continue;
     }
 
-    // Remember Ptrdepth is just abondon
-    auto make = [&](TokenType type, std::string value,
-                    unsigned ptrdepth) -> Token {
+    auto make = [&](TokenType type, std::string value) -> Token {
       return Token{type, std::move(value), tokLine, tokCol, filename};
     };
 
@@ -83,15 +82,11 @@ std::vector<Token> Lexer::lexer() {
       }
       std::string lw = toLower(word);
       TokenType type = IDENTIFIER;
-      if (lw == "version")
-        type = VERSION;
-      else if (lw == "author")
-        type = AUTHOR;
-      else if (lw == "import")
+      if (lw == "import")
         type = IMPORT;
       else if (lw == "syscall")
         type = SYSCALL;
-      out.push_back(make(type, word, 0));
+      out.push_back(make(type, word));
       continue;
     }
 
@@ -128,7 +123,7 @@ std::vector<Token> Lexer::lexer() {
       }
       if (Peek() == '"')
         Consume();
-      out.push_back(make(STRING_LITERAL, val, 0));
+      out.push_back(make(STRING_LITERAL, val));
       continue;
     }
 
@@ -166,8 +161,22 @@ std::vector<Token> Lexer::lexer() {
       }
       if (Peek() == '\'')
         Consume();
-      out.push_back(make(CHAR_LITERAL, std::string(1, value), 0));
+      out.push_back(make(CHAR_LITERAL, std::string(1, value)));
       continue;
+    }
+
+    if ((c == 'U' || c == 'S' || c == 'F') && std::isdigit(PeekNext())) {
+      std::string value = "";
+      value.push_back(c);
+
+      Consume();
+
+      while (isdigit(Peek())) {
+        value.push_back(Peek());
+        Consume();
+      }
+
+      out.push_back(make(TYPES, value));
     }
 
     // Numbers
@@ -184,9 +193,9 @@ std::vector<Token> Lexer::lexer() {
           num += Peek();
           Consume();
         }
-        out.push_back(make(FLOAT_LITERAL, num, 0));
+        out.push_back(make(FLOAT_LITERAL, num));
       } else {
-        out.push_back(make(INT_LITERAL, num, 0));
+        out.push_back(make(INT_LITERAL, num));
       }
       continue;
     }
@@ -201,69 +210,64 @@ std::vector<Token> Lexer::lexer() {
       std::string lower = toLower(id);
 
       if (lower == "true" || lower == "false") {
-        out.push_back(make(BOOLEAN_LITERAL, id, 0));
+        out.push_back(make(BOOLEAN_LITERAL, id));
         continue;
       }
       if (lower == "let") {
-        out.push_back(make(LET, id, 0));
+        out.push_back(make(LET, id));
         continue;
       }
       if (lower == "func") {
-        out.push_back(make(FUNC, id, 0));
+        out.push_back(make(FUNC, id));
         continue;
       }
       if (lower == "return") {
-        out.push_back(make(RETURN, id, 0));
+        out.push_back(make(RETURN, id));
         continue;
       }
       if (lower == "if") {
-        out.push_back(make(IF, id, 0));
+        out.push_back(make(IF, id));
         continue;
       }
       if (lower == "else") {
-        out.push_back(make(ELSE, id, 0));
+        out.push_back(make(ELSE, id));
         continue;
       }
       if (lower == "for") {
-        out.push_back(make(FOR, id, 0));
-        continue;
-      }
-      if (lower == "in") {
-        out.push_back(make(IN, id, 0));
+        out.push_back(make(FOR, id));
         continue;
       }
       if (lower == "while") {
-        out.push_back(make(WHILE, id, 0));
+        out.push_back(make(WHILE, id));
         continue;
       }
       if (lower == "struct") {
-        out.push_back(make(STRUCT, id, 0));
+        out.push_back(make(STRUCT, id));
         continue;
       }
       if (lower == "class") {
-        out.push_back(make(CLASS, id, 0));
+        out.push_back(make(CLASS, id));
         continue;
       }
       if (lower == "sizeof") {
-        out.push_back(make(SIZEOF, id, 0));
+        out.push_back(make(SIZEOF, id));
         continue;
       }
       if (lower == "break") {
-        out.push_back(make(BREAK, id, 0));
+        out.push_back(make(BREAK, id));
         continue;
       }
       if (lower == "continue") {
-        out.push_back(make(CONTINUE, id, 0));
+        out.push_back(make(CONTINUE, id));
         continue;
       }
 
-      if (id == "Integer" || id == "Float" || id == "Boolean" ||
-          id == "String" || id == "Void" || id == "Char") {
-        out.push_back(make(TYPES, id, 0));
+      if (id == "Void") {
+        out.push_back(make(TYPES, id));
         continue;
       }
 
-      out.push_back(make(IDENTIFIER, id, 0));
+      out.push_back(make(IDENTIFIER, id));
       continue;
     }
 
@@ -271,56 +275,56 @@ std::vector<Token> Lexer::lexer() {
     if (c == '=' && PeekNext() == '=') {
       Consume();
       Consume();
-      out.push_back(make(EQEQ, "==", 0));
+      out.push_back(make(EQEQ, "=="));
       continue;
     }
     if (c == '!' && PeekNext() == '=') {
       Consume();
       Consume();
-      out.push_back(make(NOTEQ, "!=", 0));
+      out.push_back(make(NOTEQ, "!="));
       continue;
     }
     if (c == '<' && PeekNext() == '=') {
       Consume();
       Consume();
-      out.push_back(make(LTE, "<=", 0));
+      out.push_back(make(LTE, "<="));
       continue;
     }
     if (c == '>' && PeekNext() == '=') {
       Consume();
       Consume();
-      out.push_back(make(GTE, ">=", 0));
+      out.push_back(make(GTE, ">="));
       continue;
     }
     if (c == '&' && PeekNext() == '&') {
       Consume();
       Consume();
-      out.push_back(make(AND, "&&", 0));
+      out.push_back(make(AND, "&&"));
       continue;
     }
     if (c == '|' && PeekNext() == '|') {
       Consume();
       Consume();
-      out.push_back(make(OR, "||", 0));
+      out.push_back(make(OR, "||"));
       continue;
     }
     if (c == '-' && PeekNext() == '>') {
       Consume();
       Consume();
-      out.push_back(make(DASHGREATER, "->", 0));
+      out.push_back(make(DASHGREATER, "->"));
       continue;
     }
     if (c == '.' && PeekNext() == '.' && PeekNextNext() == '.') {
       Consume();
       Consume();
       Consume();
-      out.push_back(make(VARIDIC, "...", 0));
+      out.push_back(make(VARIDIC, "..."));
       continue;
     }
     if (c == '.' && PeekNext() == '.') {
       Consume();
       Consume();
-      out.push_back(make(RANGE, "..", 0));
+      out.push_back(make(RANGE, ".."));
       continue;
     }
 
@@ -338,11 +342,11 @@ std::vector<Token> Lexer::lexer() {
     switch (c) {
     case '+':
       Consume();
-      out.push_back(make(PLUS, "+", 0));
+      out.push_back(make(PLUS, "+"));
       break;
     case '.':
       Consume();
-      out.push_back(make(DOT, ".", 0));
+      out.push_back(make(DOT, "."));
       break;
     case '-':
       if (std::isdigit(PeekNext()) && isUnaryMinus()) {
@@ -362,87 +366,83 @@ std::vector<Token> Lexer::lexer() {
             num += Peek();
             Consume();
           }
-          out.push_back(make(FLOAT_LITERAL, num, 0));
+          out.push_back(make(FLOAT_LITERAL, num));
         } else {
-          out.push_back(make(INT_LITERAL, num, 0));
+          out.push_back(make(INT_LITERAL, num));
         }
       } else {
         Consume();
-        out.push_back(make(MINUS, "-", 0));
+        out.push_back(make(MINUS, "-"));
       }
       break;
 
       // Consume();
-      // out.push_back(make(MINUS, "-", 0));
+      // out.push_back(make(MINUS, "-"));
       // break;
     case '*':
       Consume();
-      out.push_back(make(STAR, "*", 0));
+      out.push_back(make(STAR, "*"));
       break;
     case '/':
       Consume();
-      out.push_back(make(SLASH, "/", 0));
+      out.push_back(make(SLASH, "/"));
       break;
     case '=':
       Consume();
-      out.push_back(make(EQ, "=", 0));
+      out.push_back(make(EQ, "="));
       break;
     case '<':
       Consume();
-      out.push_back(make(LT, "<", 0));
+      out.push_back(make(LT, "<"));
       break;
     case '>':
       Consume();
-      out.push_back(make(GT, ">", 0));
+      out.push_back(make(GT, ">"));
       break;
     case '(':
       Consume();
-      out.push_back(make(LPAREN, "(", 0));
+      out.push_back(make(LPAREN, "("));
       break;
     case ')':
       Consume();
-      out.push_back(make(RPAREN, ")", 0));
+      out.push_back(make(RPAREN, ")"));
       break;
     case '{':
       Consume();
-      out.push_back(make(LBRACE, "{", 0));
+      out.push_back(make(LBRACE, "{"));
       break;
     case '}':
       Consume();
-      out.push_back(make(RBRACE, "}", 0));
+      out.push_back(make(RBRACE, "}"));
       break;
     case '[':
       Consume();
-      out.push_back(make(LBRACKET, "[", 0));
+      out.push_back(make(LBRACKET, "["));
       break;
     case ']':
       Consume();
-      out.push_back(make(RBRACKET, "]", 0));
+      out.push_back(make(RBRACKET, "]"));
       break;
     case ':':
       Consume();
-      out.push_back(make(COLON, ":", 0));
+      out.push_back(make(COLON, ":"));
       break;
     case ',':
       Consume();
-      out.push_back(make(COMMA, ",", 0));
+      out.push_back(make(COMMA, ","));
       break;
     case ';':
       Consume();
-      out.push_back(make(SEMICOLON, ";", 0));
+      out.push_back(make(SEMICOLON, ";"));
       break;
     case '&':
       Consume();
-      out.push_back(make(ANDPERCENT, "&", 0));
+      out.push_back(make(ANDPERCENT, "&"));
       break;
 
-    case '|':
-      Consume();
-      out.push_back(make(BITOR, "|", 0));
-      break;
     default:
       Consume();
-      out.push_back(make(IDENTIFIER, std::string(1, c), 0));
+      out.push_back(make(IDENTIFIER, std::string(1, c)));
       break;
     }
   }
@@ -453,10 +453,6 @@ std::vector<Token> Lexer::lexer() {
 
 const char *tokenName(TokenType t) {
   switch (t) {
-  case VERSION:
-    return "VERSION";
-  case AUTHOR:
-    return "AUTHOR";
   case IMPORT:
     return "IMPORT";
   case SYSCALL:
@@ -473,8 +469,6 @@ const char *tokenName(TokenType t) {
     return "ELSE";
   case FOR:
     return "FOR";
-  case IN:
-    return "IN";
   case WHILE:
     return "WHILE";
   case CLASS:
@@ -564,55 +558,51 @@ const char *tokenName(TokenType t) {
 
 // int main() {
 //   std::string src = R"(
-//   @version "1.0";
-//   @author "Tahmid";
-
-//   let x: Integer = 10;
+//
+//   let x: Void = 10;
 //   let something:Integer**** = &x;
 //   let y: Float = 3.14;
-
+//
 //   let y: Integer[2] = [21, 12];
 //   ley something: Char{32} = {'s', 'b', 'c', 'd'. 'e' , '\0'};
-
+//
 //   func add(a: Integer, b: Integer) -> void {
 // 	return a + b;
 //   }
-
+//
 //   if x >= 5 {
 // 	2 + 1;
 //   } else {
 // 	2 + 1;
 //   }
-
+//
 //   while (True) {
 // 	break;
 //   }
-
+//
 //   for i in 0..10 {
 // 	2 + 1;
 //   }
-
+//
 //   struct RandomStruct {
 // 	let a:Integer;
 //   };
-
+//
 //   let something:RandomStruct* {
 //   |
-
+//
 //   }
-
+//
 //   )";
-
+//
 //   // std::string src = R"(
 //   // let x:Integer;
 //   // )";
 //   Lexer lexer(src);
 //   auto program = lexer.lexer();
-
-//   int stmtNo = 0;
+//
 //   for (const auto &stmt : program) {
 //     std::cout << "  " << std::setw(12) << tokenName(stmt.type) << " : '"
-//             << stmt.value << 
-//                "'\n";
+//               << stmt.value << "'\n";
 //   }
 // }

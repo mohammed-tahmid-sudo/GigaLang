@@ -46,16 +46,11 @@ target_link_libraries(GigaLang PRIVATE ${LLVM_LIBS})
 target_compile_options(GigaLang PRIVATE
     -fexceptions
     -g
+    -Wall
+    -Wextra 
 )
 
 set_target_properties(GigaLang PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-add_custom_target(run
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target GigaLang
-    COMMAND ${CMAKE_BINARY_DIR}/bin/GigaLang
-    DEPENDS GigaLang
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    COMMENT "Building and running GigaLang..."
-)

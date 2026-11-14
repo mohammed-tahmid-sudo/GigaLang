@@ -4,8 +4,6 @@
 
 enum TokenType {
   // Headers
-  VERSION,
-  AUTHOR,
   IMPORT,
   SYSCALL,
   // Keywords
@@ -15,7 +13,6 @@ enum TokenType {
   IF,
   ELSE,
   FOR,
-  IN,
   WHILE,
   CLASS,
   STRUCT,
@@ -47,7 +44,6 @@ enum TokenType {
   GTE,
   AND,
   OR,
-  BITOR,
   DOT,
   // Punctuation
   LPAREN,

@@ -5,7 +5,6 @@
 #include <colors.h>
 #include <cstddef>
 #include <iostream>
-#include <llvm/IR/Module.h>
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/StringMap.h>
@@ -23,6 +22,7 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Metadata.h>
+#include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Verifier.h>
@@ -36,80 +36,10 @@
 #include <types.h>
 #include <vector>
 
-// ABUNDANT
-// llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc) {
-//   std::string t = typeToken.value;
-//   for (char &c : t)
-//     c = toupper(c);
-
-//   if (t.size() > 7 && t.substr(t.size() - 7) == "POINTER") {
-//     Token baseToken;
-//     baseToken.value = t.substr(0, t.size() - 7); // strip "POINTER"
-//     return GetTypeNonVoid(baseToken, cc); // "CHAR" -> i8, "INTEGER" -> i32
-//   }
-//   return nullptr;
-// }
-
-// llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc) {
-//   llvm::Type *retTy;
-
-//   if (type.type == IDENTIFIER) {
-//     retTy = cc.lookupStruct(type.value);
-
-//   } else if (type.type == TYPES) {
-//     std::string t = type.value;
-
-//     for (auto &i : t) {
-//       i = toupper(i);
-//     }
-
-//     if (t == "INTEGER") {
-//       retTy = llvm::Type::getInt32Ty(*cc.TheContext);
-//     } else if (t == "FLOAT") {
-//       retTy = llvm::Type::getFloatTy(*cc.TheContext);
-//     } else if (t == "STRING") {
-//       retTy = llvm::Type::getInt8Ty(*cc.TheContext);
-//     } else if (t == "BOOLEAN") {
-//       retTy = llvm::Type::getInt1Ty(*cc.TheContext);
-//     } else if (t == "CHAR") {
-//       retTy = llvm::Type::getInt8Ty(*cc.TheContext);
-//     } else if (t == "VOID" && type.ptrdepth > 0) {
-//       retTy = llvm::PointerType::get(*cc.TheContext, 0);
-//     }
-
-//   } else {
-//     throw std::runtime_error("INVALID TYPE: " + type.value);
-//   }
-
-//   // for (int i = type.ptrdepth; i > 0; --i) {
-//   //   retTy = llvm::PointerType::get(retTy, 0);
-//   // }
-//   if (type.ptrdepth > 0) {
-//     retTy = llvm::PointerType::get(retTy, 0);
-//   }
-
-//   return retTy;
-// }
-
-// llvm::Type *GetTypeVoid(Token type, CodegenContext &cc) {
-//   std::string holder = type.value;
-//   for (char &c : holder)
-//     c = toupper(c);
-
-//   if (holder == "VOID") {
-//     if (type.ptrdepth > 0)
-//       return llvm::PointerType::get(*cc.TheContext, 0);
-//     return llvm::Type::getVoidTy(*cc.TheContext);
-//   }
-
-//   return GetTypeNonVoid(type, cc);
-// }
-
-
 CodegenResults CharNode::codegen(CodegenContext &cc) {
   return {
       llvm::ConstantInt::get(llvm::Type::getInt8Ty(*cc.TheContext), val, false),
-      nullptr, llvm::Type::getInt8Ty(*cc.TheContext), nullptr};
+      nullptr, , };
 }
 
 CodegenResults StringNode::codegen(CodegenContext &cc) {
@@ -148,45 +78,14 @@ CodegenResults BooleanNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
-  llvm::Type *elementType = ComputeType(type, cc);
+  llvm::Type *elementType = ComputeType(*type, cc);
   llvm::AllocaInst *alloca = nullptr;
   llvm::Type *finalType = elementType;
 
-  if (arraySize.has_value()) {
-    finalType = llvm::ArrayType::get(elementType, arraySize.value());
-    alloca = cc.Builder->CreateAlloca(finalType, nullptr, name);
-
-    if (val) {
-      CodegenResults initRes = val->codegen(cc);
-      cc.Builder->CreateStore(initRes.ActualValue, alloca);
-    }
-  } else {
-    alloca = cc.Builder->CreateAlloca(elementType, nullptr, name);
-    if (val) {
-      CodegenResults initRes = val->codegen(cc);
-      cc.Builder->CreateStore(initRes.ActualValue, alloca);
-    }
-  }
-
-  llvm::Type *elemType = ComputeType(type, cc);
-
-  if (arraySize.has_value()) {
-    finalType = llvm::ArrayType::get(elemType, arraySize.value());
-  } else {
-    finalType = elemType;
-  }
-
-  auto holder = type;
-  holder.is_ptr = false;
-  llvm::Type *notptr = ComputeType(holder, cc);
-
-  cc.addVariable(name, alloca, finalType, elemType);
-  return {
-      cc.Builder->CreateLoad(finalType, alloca), // ActualValue (the data)
-      alloca,    // ActualValueButAsAPointer (the address)
-      finalType, // ActualType (pointer type)
-      notptr     // ActualTypeButNotThePointer
-  };
+  cc.addVariable(name, alloca, *type);
+  return {cc.Builder->CreateLoad(finalType, alloca), // ActualValue (the data)
+          alloca, // ActualValueButAsAPointer (the address)
+          type};
 }
 
 CodegenResults AssignmentNode::codegen(CodegenContext &cc) {
@@ -760,7 +659,8 @@ CodegenResults ArrayAccessNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults SyscallNode::codegen(CodegenContext &cc) {
-  std::cout << Colors::RED << "WORK INSIDE SYSCALL" << Colors::RESET << std::endl;
+  std::cout << Colors::RED << "WORK INSIDE SYSCALL" << Colors::RESET
+            << std::endl;
   if (!cc.TheContext || !cc.Builder)
     throw std::runtime_error("SyscallNode: invalid codegen context");
 

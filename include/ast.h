@@ -1,6 +1,7 @@
 #pragma once
 
 #include "lexer.h"
+#include <iterator>
 #include <llvm-21/llvm/IR/DerivedTypes.h>
 #include <llvm-21/llvm/IR/IRBuilder.h>
 #include <llvm-21/llvm/IR/LLVMContext.h>
@@ -14,10 +15,6 @@
 #include <utility>
 #include <utils.h>
 #include <vector>
-
-llvm::Type *GetPointeeType(Token typeToken, CodegenContext &cc);
-llvm::Type *GetTypeVoid(Token type, CodegenContext &cc);
-llvm::Type *GetTypeNonVoid(Token type, CodegenContext &cc);
 
 struct ast {
   virtual ~ast() = default;
@@ -38,8 +35,12 @@ struct StringNode : ast {
 };
 
 struct IntegerNode : ast {
-  int val;
-  IntegerNode(const int v) : val(v) {}
+  std::string val;
+  std::uint8_t size;
+  bool is_singed = true;
+
+  IntegerNode(const std::string v, std::uint8_t siz, bool is_s)
+      : val(v), size(siz), is_singed(is_s) {}
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
@@ -64,12 +65,11 @@ struct BooleanNode : ast {
 
 struct VariableDeclareNode : ast {
   std::string name;
-  SystemType type;
-  std::unique_ptr<ast> val;          // can be single value or ArrayLiteralNode
-  std::optional<unsigned> arraySize; // new: size if it's an array
+  std::unique_ptr<ast> val; 
+  std::unique_ptr<SystemType> type;
   VariableDeclareNode(const std::string &n, std::unique_ptr<ast> v,
-                      SystemType t, std::optional<unsigned> size = 1)
-      : name(n), val(std::move(v)), type(t), arraySize(size) {}
+                      std::unique_ptr<SystemType> t)
+      : name(n), val(std::move(v)), type(std::move(t)) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
@@ -98,16 +98,18 @@ struct CompoundNode : ast {
 
 struct FunctionNode : ast {
   std::string name;
-  std::vector<std::tuple<std::string, SystemType>> args;
-  bool isVaridic;
+  std::vector<std::tuple<std::string, std::unique_ptr<SystemType>>> args;
   std::unique_ptr<ast> content;
-  SystemType ReturnType;
+  std::unique_ptr<SystemType> ReturnType;
+  bool isVaridic;
 
-  FunctionNode(const std::string &s,
-               std::vector<std::tuple<std::string, SystemType>> ars,
-               std::unique_ptr<ast> cntnt, SystemType RetType, bool varidic)
-      : name(s), args(ars), content(std::move(cntnt)), ReturnType(RetType),
-        isVaridic(varidic) {}
+  FunctionNode(
+      const std::string &s,
+      std::vector<std::tuple<std::string, std::unique_ptr<SystemType>>> ars,
+      std::unique_ptr<ast> cntnt, std::unique_ptr<SystemType> RetType,
+      bool varidic)
+      : name(s), args(ars), content(std::move(cntnt)),
+        ReturnType(std::move(RetType)), isVaridic(varidic) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
@@ -144,9 +146,9 @@ struct IfNode : ast {
 };
 
 struct BinaryOperationNode : ast {
+  TokenType Type;
   std::unique_ptr<ast> Left;
   std::unique_ptr<ast> Right;
-  TokenType Type;
   BinaryOperationNode(TokenType tp, std::unique_ptr<ast> LHS,
                       std::unique_ptr<ast> RHS)
       : Type(tp), Left(std::move(LHS)), Right(std::move(RHS)) {}
@@ -242,19 +244,20 @@ struct DeReferenceNode : ast {
 
 struct CastNode : ast {
   std::unique_ptr<ast> Value;
-  SystemType targetType;
+  std::unique_ptr<SystemType> targetType;
 
-  CastNode(std::unique_ptr<ast> V, SystemType type)
-      : Value(std::move(V)), targetType(type) {}
+  CastNode(std::unique_ptr<ast> V, std::unique_ptr<SystemType> type)
+      : Value(std::move(V)), targetType(std::move(type)) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
 struct StructCreateNode : ast {
-  std::unordered_map<std::string, SystemType> types;
   std::string name;
-  StructCreateNode(const std::string &s,
-                   std::unordered_map<std::string, SystemType> tps)
+  std::unordered_map<std::string, std::unique_ptr<SystemType>> types;
+  StructCreateNode(
+      const std::string &s,
+      std::unordered_map<std::string, std::unique_ptr<SystemType>> tps)
       : name(s), types(std::move(tps)) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
@@ -279,3 +282,4 @@ struct PointerFieldAccessNode : ast {
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
+

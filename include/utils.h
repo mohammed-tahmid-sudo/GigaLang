@@ -1,5 +1,6 @@
 #pragma once
 
+#include <colors.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
@@ -7,12 +8,12 @@
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
 #include <llvm/Support/Endian.h>
-#include <colors.h>
-#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <strings.h>
+#include <types.h>
+#include <utility>
 #include <vector>
 
 extern bool debug_enabled;
@@ -20,21 +21,16 @@ extern bool debug_enabled;
 struct CodegenResults {
   llvm::Value *ActualValue;
   llvm::Value *ActualValueButAsAPointer;
-  llvm::Type *ActualType;
-  llvm::Type *ActualTypeButNotThePointer;
-};
-
-struct VWT {
-  llvm::Value *val;
-  llvm::Type *type;
-  llvm::Type *elementType;
+  SystemType *Type;
 };
 
 struct CodegenContext {
   std::unique_ptr<llvm::LLVMContext> TheContext;
   std::unique_ptr<llvm::IRBuilder<>> Builder;
   std::unique_ptr<llvm::Module> Module;
-  std::vector<std::unordered_map<std::string, VWT>> NamedValuesStack;
+  std::vector<
+      std::unordered_map<std::string, std::pair<llvm::Value *, SystemType>>>
+      NamedValuesStack;
   std::unordered_map<std::string, llvm::StructType *> StringToStructs;
   std::unordered_map<llvm::StructType *,
                      std::vector<std::tuple<std::string, size_t, llvm::Type *>>>
@@ -47,8 +43,8 @@ struct CodegenContext {
   void popScope() { NamedValuesStack.pop_back(); }
 
   void addVariable(const std::string &name, llvm::Value *value,
-                   llvm::Type *Type, llvm::Type *elemenType) {
-    NamedValuesStack.back()[name] = VWT{value, Type, elemenType};
+                   SystemType &type) {
+    NamedValuesStack.back()[name] = {value, type};
   }
 
   void
@@ -59,12 +55,11 @@ struct CodegenContext {
     return;
   }
 
-  VWT lookupVariable(const std::string &name) {
+  std::pair<llvm::Value *, SystemType> lookupVariable(const std::string &name) {
     for (auto it = NamedValuesStack.rbegin(); it != NamedValuesStack.rend();
          ++it)
       if (it->count(name))
         return (*it)[name];
-    return {nullptr, nullptr, nullptr};
   }
 
   llvm::StructType *lookupStruct(const std::string &name) {
@@ -82,4 +77,6 @@ struct CodegenContext {
         Module(std::make_unique<llvm::Module>(name, *TheContext)) {}
 };
 
-void show_debug(std::string &msg); 
+void show_debug(std::string &msg);
+
+llvm::Type *ComputeType(SystemType &type, CodegenContext &cc);
