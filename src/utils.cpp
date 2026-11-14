@@ -29,10 +29,6 @@ llvm::Type *ComputeType(SystemType &type, CodegenContext &cc) {
     }
     break;
 
-  case CHAR:
-    baseType = llvm::Type::getInt8Ty(*cc.TheContext);
-    break;
-
   case STRUCTS:
     baseType = cc.lookupStruct(type.struct_name);
     break;

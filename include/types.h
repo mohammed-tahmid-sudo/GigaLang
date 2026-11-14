@@ -6,7 +6,7 @@
 #include <llvm/IR/Type.h>
 #include <string>
 
-enum TypeKind { SINGED, UNSINGED, FLOAT, CHAR, STRUCTS, VOID };
+enum TypeKind { SINGED, UNSINGED, FLOAT, STRUCTS, VOID };
 
 struct SystemType {
   TypeKind kind = VOID;
@@ -22,3 +22,8 @@ struct SystemType {
 };
 
 void TurnTokenToType(SystemType &type, const Token &token);
+
+std::unique_ptr<SystemType>
+CreateSystemType(TypeKind kind = VOID, std::uint16_t size = 0,
+                 bool is_ptr = false, size_t ptrdepth = 0, bool is_arr = false,
+                 size_t size_arr = 0, std::string struct_name = "");

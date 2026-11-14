@@ -19,9 +19,8 @@
 extern bool debug_enabled;
 
 struct CodegenResults {
-  llvm::Value *ActualValue;
-  llvm::Value *ActualValueButAsAPointer;
-  SystemType *Type;
+  llvm::Value *;
+  std::unique_ptr<SystemType> Type;
 };
 
 struct CodegenContext {
@@ -60,6 +59,7 @@ struct CodegenContext {
          ++it)
       if (it->count(name))
         return (*it)[name];
+    return {nullptr, SystemType{}};
   }
 
   llvm::StructType *lookupStruct(const std::string &name) {

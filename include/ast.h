@@ -46,7 +46,8 @@ struct IntegerNode : ast {
 
 struct FloatNode : ast {
   float val;
-  FloatNode(float v) : val(v) {}
+  std::uint8_t size;
+  FloatNode(float v, std::uint8_t siz) : val(v), size(siz) {}
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
@@ -65,7 +66,7 @@ struct BooleanNode : ast {
 
 struct VariableDeclareNode : ast {
   std::string name;
-  std::unique_ptr<ast> val; 
+  std::unique_ptr<ast> val;
   std::unique_ptr<SystemType> type;
   VariableDeclareNode(const std::string &n, std::unique_ptr<ast> v,
                       std::unique_ptr<SystemType> t)
@@ -282,4 +283,3 @@ struct PointerFieldAccessNode : ast {
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
-

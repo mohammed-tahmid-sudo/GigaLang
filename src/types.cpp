@@ -1,11 +1,12 @@
 #include "ast.h"
 #include <iostream>
 #include <llvm-21/llvm/IR/Type.h>
+#include <llvm-21/llvm/Support/Casting.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Metadata.h>
+#include <memory>
 #include <string>
 #include <types.h>
-
 
 void TurnTokenToType(SystemType &type, const Token &token) {
   switch (token.type) {
@@ -13,7 +14,6 @@ void TurnTokenToType(SystemType &type, const Token &token) {
     type.kind = TypeKind::STRUCTS;
     type.struct_name = token.value;
     break;
-
   case TYPES: {
     std::string holder = token.value;
 
@@ -44,4 +44,12 @@ void TurnTokenToType(SystemType &type, const Token &token) {
   default:
     throw std::runtime_error("Unexpected token type");
   }
+}
+std::unique_ptr<SystemType> CreateSystemType(TypeKind kind, std::uint16_t size,
+                                             bool is_ptr, size_t ptrdepth,
+                                             bool is_arr, size_t size_arr,
+                                             std::string struct_name) {
+
+  return std::make_unique<SystemType>(SystemType{
+      kind, size, is_ptr, ptrdepth, is_arr, size_arr, std::move(struct_name)});
 }
