@@ -3,6 +3,7 @@
 #include <lexer.h>
 #include <memory>
 #include <vector>
+
 class Parser {
   std::vector<Token> input;
   size_t x = 0;

@@ -45,9 +45,9 @@ struct IntegerNode : ast {
 };
 
 struct FloatNode : ast {
-  float val;
+  std::string val;
   std::uint8_t size;
-  FloatNode(float v, std::uint8_t siz) : val(v), size(siz) {}
+  FloatNode(std::string v, std::uint8_t siz) : val(v), size(siz) {}
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
@@ -109,7 +109,7 @@ struct FunctionNode : ast {
       std::vector<std::tuple<std::string, std::unique_ptr<SystemType>>> ars,
       std::unique_ptr<ast> cntnt, std::unique_ptr<SystemType> RetType,
       bool varidic)
-      : name(s), args(ars), content(std::move(cntnt)),
+      : name(s), args(std::move(ars)), content(std::move(cntnt)),
         ReturnType(std::move(RetType)), isVaridic(varidic) {}
 
   CodegenResults codegen(CodegenContext &cc) override;

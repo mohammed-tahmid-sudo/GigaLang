@@ -19,7 +19,8 @@
 extern bool debug_enabled;
 
 struct CodegenResults {
-  llvm::Value *;
+  llvm::Value *ActualValue;
+  llvm::Value *ActualValueButAsAPointer;
   std::unique_ptr<SystemType> Type;
 };
 
@@ -32,7 +33,7 @@ struct CodegenContext {
       NamedValuesStack;
   std::unordered_map<std::string, llvm::StructType *> StringToStructs;
   std::unordered_map<llvm::StructType *,
-                     std::vector<std::tuple<std::string, size_t, llvm::Type *>>>
+                     std::vector<std::tuple<std::string, size_t, SystemType>>>
       StructsToPair;
   llvm::BasicBlock *BreakBB = nullptr;
   llvm::BasicBlock *ContinueBB = nullptr;
@@ -48,9 +49,9 @@ struct CodegenContext {
 
   void
   addStruct(const std::string &name, llvm::StructType *Type,
-            std::vector<std::tuple<std::string, size_t, llvm::Type *>> Pairs) {
+            std::vector<std::tuple<std::string, size_t, SystemType>> Pairs) {
     StringToStructs[name] = Type;
-    StructsToPair[Type] = Pairs;
+    StructsToPair[Type] = std::move(Pairs);
     return;
   }
 
