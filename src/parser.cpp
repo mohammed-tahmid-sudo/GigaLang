@@ -158,7 +158,10 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   else if (Peek().type == TokenType::LPAREN) {
     Consume();
 
-    if (Peek().type == TYPES || Peek().type == IDENTIFIER) {
+    if (auto val = ParseExpression()) {
+      Expect(TokenType::RPAREN);
+      return val;
+    } else if (Peek().type == TYPES || Peek().type == IDENTIFIER) {
       SystemType ActualType = ParseType();
       // Consume();
       Expect(RPAREN);
@@ -168,12 +171,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
           std::move(val), std::make_unique<SystemType>(ActualType));
     }
 
-    auto val = ParseExpression();
-    if (!val) {
-      throw std::runtime_error("VAL IS A NULLPTR");
-    }
-    Expect(TokenType::RPAREN);
-    return val;
   } else if (Peek().type == TokenType::LBRACKET) {
     Expect(TokenType::LBRACKET);
     std::vector<std::unique_ptr<ast>> elements;
@@ -235,35 +232,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
                                std::to_string(val.value.size()));
     }
     return std::make_unique<CharNode>(val.value[0]);
-  } else if (Peek().type == SIZEOF) {
-    Consume();
-    Expect(LPAREN);
-    auto val = ParseExpression();
-    Expect(RPAREN);
-
-    return std::make_unique<SizeOfNode>(std::move(val));
-  } else if (Peek().type == SYSCALL) {
-    Consume();
-    Expect(LPAREN);
-    // Token name = Expect(STRING_LITERAL);
-    Token name = Expect(INT_LITERAL);
-    Expect(COMMA);
-    std::vector<std::unique_ptr<ast>> args;
-    while (Peek().type != RPAREN) {
-      args.push_back(ParseExpression());
-
-      if (Peek().type == COMMA) {
-        Consume();
-        continue;
-      } else {
-        break;
-      }
-    }
-
-    Expect(RPAREN);
-
-    return std::make_unique<SyscallNode>(std::stoi(name.value),
-                                         std::move(args));
   } else if (Peek().type == ANDPERCENT) {
     Consume();
     return std::make_unique<PointerReferenceNode>(ParseExpression());
@@ -294,18 +262,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
       return nullptr;
     }
   }
-}
-std::unique_ptr<ast> Parser::ParsePointerFileld() {
-  // std::unique_ptr<ast> left = ParseFactor();
-  // while (Peek().type == DASHGREATER) {
-  //   Consume();
-  //   auto right = Expect(IDENTIFIER);
-  //   left =
-  //       std::make_unique<PointerFieldAccessNode>(std::move(left),
-  //       right.value);
-  // }
-  // return left;
-  std::runtime_error("Calling me");
   return nullptr;
 }
 
@@ -440,18 +396,6 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
       type = ParseType();
     }
 
-    // llvm::Type *llvmType = GetTypeVoid(type, cc);
-
-    // unsigned arraySize = 0;
-    // if (Peek().type == LBRACKET) {
-    //   Consume();
-    //   Token sizeTok = Expect(INT_LITERAL);
-    //   arraySize = std::stoi(sizeTok.value);
-    //   Expect(RBRACKET);
-
-    //   llvmType = llvm::ArrayType::get(llvmType, arraySize);
-    // }
-
     args.push_back({paramName.value, std::make_unique<SystemType>(type)});
 
     if (Peek().type == COMMA) {
@@ -472,7 +416,6 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
   } else {
     Expect(DASHGREATER);
     if (Peek().type == TYPES || Peek().type == IDENTIFIER) {
-      std::cout << Peek().value << std::endl;
       rettype = ParseType();
     }
   }
@@ -707,24 +650,12 @@ int main() {
   std::string src = R"(
 func main() -> S8 {
 
-let secret: S16 = 42;
-let guess: S16 = 50;
-let attempts: U16 = 0;
+let b: S8 = (S8)(1414);
+let c: S8 = (S8)188;
 
-while guess != secret {
-    attempts = attempts + 1;
-
-    if (guess > secret) {
-        @Syscall(1, 1, "Too high!\n", 10);
-        guess = guess - 1;
-    } else if (guess < secret) {
-        @Syscall(1, 1, "Too low!\n", 9);
-        guess = guess + 1;
-    }
-}
-
-@Syscall(1, 1, "Correct!\n", 9);
+let a: S8 = 42 + (b+c);
 return 0;
+
 }
 
   )";

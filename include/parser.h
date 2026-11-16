@@ -26,7 +26,6 @@ public:
   // END HELPER
 
   std::unique_ptr<ast> ParseFactor();
-  std::unique_ptr<ast> ParsePointerFileld();
   std::unique_ptr<ast> ParseField();
   std::unique_ptr<ast> ParseAddSub();
   std::unique_ptr<ast> ParseComparison();

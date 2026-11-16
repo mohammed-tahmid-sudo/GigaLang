@@ -40,6 +40,7 @@
 llvm::Value *castValue(llvm::IRBuilder<> &builder, llvm::Value *val,
                        llvm::Type *targetType, bool sourceIsSigned,
                        bool targetIsSigned) {
+  std::cout << "CATING HERE: " << std::endl;
   if (!val || !targetType)
     return nullptr;
 
@@ -115,8 +116,9 @@ CodegenResults IntegerNode::codegen(CodegenContext &cc) {
 CodegenResults FloatNode::codegen(CodegenContext &cc) {
 
   auto type = CreateSystemType(FLOAT, size);
-  return {llvm::ConstantFP::get(ComputeType(*type, cc), val), nullptr,
-          std::move(type)};
+
+  return {llvm::ConstantFP::get(ComputeType(*type, cc), std::stold(val)),
+          nullptr, std::move(type)};
 }
 
 CodegenResults BooleanNode::codegen(CodegenContext &cc) {
@@ -712,11 +714,6 @@ CodegenResults ArrayLiteralNode::codegen(CodegenContext &cc) {
           std::move(resultType)};
 }
 
-CodegenResults SizeOfNode::codegen(CodegenContext &cc) {
-  std::cerr << "SIZEOF DOES NOT WORK FOR NOT" << std::endl;
-  return {nullptr, nullptr, nullptr};
-}
-
 CodegenResults ArrayAccessNode::codegen(CodegenContext &cc) {
   auto [arrayPtr, arrayType] = cc.lookupVariable(arrayName);
 
@@ -761,72 +758,6 @@ CodegenResults ArrayAccessNode::codegen(CodegenContext &cc) {
 
   return {cc.Builder->CreateLoad(elementType, elementPtr, "arrayelem"),
           elementPtr, std::make_unique<SystemType>(elementSystemType)};
-}
-
-CodegenResults SyscallNode::codegen(CodegenContext &cc) {
-  if (!cc.TheContext || !cc.Builder)
-    throw std::runtime_error("SyscallNode: invalid codegen context");
-
-  llvm::Type *i64Ty = llvm::Type::getInt64Ty(*cc.TheContext);
-
-  std::vector<llvm::Value *> llvmArgs;
-  llvmArgs.reserve(6);
-
-  for (size_t i = 0; i < args.size(); i++) {
-    if (!args[i])
-      throw std::runtime_error("SyscallNode: null argument at index " +
-                               std::to_string(i));
-
-    CodegenResults result = args[i]->codegen(cc);
-
-    if (!result.ActualValue)
-      throw std::runtime_error("SyscallNode: failed to generate argument " +
-                               std::to_string(i));
-
-    llvm::Value *value = result.ActualValue;
-
-    if (!value->getType()->isIntegerTy(64)) {
-      if (value->getType()->isIntegerTy()) {
-        value = cc.Builder->CreateIntCast(value, i64Ty, false);
-      } else if (value->getType()->isPointerTy()) {
-        value = cc.Builder->CreatePtrToInt(value, i64Ty);
-      } else {
-        throw std::runtime_error("SyscallNode: unsupported argument type");
-      }
-    }
-
-    llvmArgs.push_back(value);
-  }
-
-  if (llvmArgs.size() > 6)
-    throw std::runtime_error("SyscallNode: too many arguments (max 6)");
-
-  while (llvmArgs.size() < 6)
-    llvmArgs.push_back(llvm::ConstantInt::get(i64Ty, 0));
-
-  if (name < 0)
-    throw std::runtime_error("SyscallNode: invalid syscall number");
-
-  llvm::Value *syscallNum = llvm::ConstantInt::get(i64Ty, name);
-
-  std::vector<llvm::Value *> finalArgs = {syscallNum};
-  finalArgs.insert(finalArgs.end(), llvmArgs.begin(), llvmArgs.end());
-
-  llvm::FunctionType *functionType = llvm::FunctionType::get(
-      i64Ty, std::vector<llvm::Type *>(7, i64Ty), false);
-
-  llvm::InlineAsm *asmSyscall = llvm::InlineAsm::get(
-      functionType, "syscall",
-      "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory}",
-      true);
-
-  llvm::CallInst *call = cc.Builder->CreateCall(asmSyscall, finalArgs);
-
-  auto returnType = std::make_unique<SystemType>();
-  returnType->kind = UNSINGED;
-  returnType->size = 8;
-
-  return {call, nullptr, std::move(returnType)};
 }
 
 CodegenResults PointerReferenceNode::codegen(CodegenContext &cc) {
