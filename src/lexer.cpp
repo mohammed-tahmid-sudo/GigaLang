@@ -3,6 +3,7 @@
 #include <colors.h>
 #include <cstdio>
 #include <iomanip>
+#include <iostream>
 #include <lexer.h>
 #include <llvm-21/llvm/IR/InlineAsm.h>
 #include <string>
@@ -177,6 +178,7 @@ std::vector<Token> Lexer::lexer() {
       }
 
       out.push_back(make(TYPES, value));
+      continue;
     }
 
     // Numbers

@@ -1,10 +1,10 @@
 #include "ast.h"
 #include "lexer.h"
 #include <Diagnosis.h>
-#include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <colors.h>
+#include <cstdint>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
@@ -33,18 +33,17 @@
 #include <utility>
 #include <vector>
 
-unsigned GetIntegerSize(const std::string &str) {
+std::uint8_t GetIntegerSize(const std::string &str) {
   int64_t value;
 
   auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value);
-
-  std::cout << "INSIDE GETINTEGGERSIZE VALUE: " << value << std::endl;
 
   if (ec != std::errc{} || ptr != str.data() + str.size())
     return 0;
 
   if (value >= INT8_MIN && value <= INT8_MAX)
     return 8;
+
   if (value >= INT16_MIN && value <= INT16_MAX)
     return 16;
   if (value >= INT32_MIN && value <= INT32_MAX)
@@ -125,14 +124,11 @@ SystemType Parser::ParseType() {
 
 std::unique_ptr<ast> Parser::ParseFactor() {
   if (Peek().type == TokenType::INT_LITERAL) {
-    if (Peek().value[0] == '-') {
-    }
-    auto val = Peek().value;
+    std::string val = Peek().value;
 
-    int size = GetIntegerSize(val);
+    std::uint8_t size = GetIntegerSize(val);
 
     Consume();
-    std::cout << "INSIDE INTEGER: " << size << std::endl;
     return std::make_unique<IntegerNode>(val, size, true);
   } else if (Peek().type == TokenType::FLOAT_LITERAL) {
     std::string val = Peek().value;
@@ -160,7 +156,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
   }
 
   else if (Peek().type == TokenType::LPAREN) {
-    Expect(TokenType::LPAREN);
+    Consume();
 
     if (Peek().type == TYPES || Peek().type == IDENTIFIER) {
       SystemType ActualType = ParseType();
@@ -416,27 +412,13 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
   } else {
     throw std::runtime_error("Expected TYPES or IDENTIFIER");
   }
-
   std::unique_ptr<ast> val = nullptr;
   if (Peek().type == TokenType::EQ) {
     Consume();
     val = ParseExpression();
-
-    // if (auto arrNode = dynamic_cast<ArrayLiteralNode *>(val.get())) {
-    //   if (arrNode->Elements.size() > size) {
-    //     diag.error(loc(),
-    //                "array initializer has " +
-    //                    std::to_string(arrNode->Elements.size()) +
-    //                    "reduce initializer or increase declared size: let x:"
-    //                    + std::to_string(type.size_arr) + "[" +
-    //                    std::to_string(arrNode->Elements.size()) + "]");
-    //   }
-    // }
   }
 
-  std::cout << "COMMING HERe" << std::endl;
   Expect(TokenType::SEMICOLON);
-  std::cout << "COMMING HERe" << std::endl;
 
   return std::make_unique<VariableDeclareNode>(
       name.value, std::move(val), std::make_unique<SystemType>(type));
@@ -475,7 +457,6 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
     if (Peek().type == COMMA) {
       Consume();
       if (Peek().type == VARIDIC) {
-        std::cout << "COMMING HErE" << std::endl;
         Consume();
         varidicType = true;
         break;
@@ -536,13 +517,13 @@ std::unique_ptr<ReturnNode> Parser::ParseReturn() {
 
 std::unique_ptr<IfNode> Parser::ParseIfElse() {
   Expect(IF);
-  // Expect(LPAREN);
+  Expect(LPAREN);
   auto args = ParseExpression();
   if (!args) {
     throw std::runtime_error("If statement missing condition");
   }
 
-  // Expect(RPAREN);
+  Expect(RPAREN);
   std::unique_ptr<ast> TrueBlock = ParseStatement();
 
   if (!TrueBlock) {
@@ -552,7 +533,7 @@ std::unique_ptr<IfNode> Parser::ParseIfElse() {
   std::unique_ptr<ast> ElseBlock = nullptr;
 
   if (Peek().type == ELSE) {
-    Expect(ELSE);
+    Consume();
     ElseBlock = ParseStatement();
     if (!ElseBlock) {
       throw std::runtime_error("If statement missing ElseBlock");
@@ -565,6 +546,7 @@ std::unique_ptr<IfNode> Parser::ParseIfElse() {
 
 std::unique_ptr<WhileNode> Parser::ParseWhile() {
   Expect(WHILE);
+
   auto args = ParseExpression();
 
   auto block = ParseStatement();
@@ -723,9 +705,26 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
 
 int main() {
   std::string src = R"(
-func main() -> U8 {
-	let a:U8 = 255;
-	return 0;
+func main() -> S8 {
+
+let secret: S16 = 42;
+let guess: S16 = 50;
+let attempts: U16 = 0;
+
+while guess != secret {
+    attempts = attempts + 1;
+
+    if (guess > secret) {
+        @Syscall(1, 1, "Too high!\n", 10);
+        guess = guess - 1;
+    } else if (guess < secret) {
+        @Syscall(1, 1, "Too low!\n", 9);
+        guess = guess + 1;
+    }
+}
+
+@Syscall(1, 1, "Correct!\n", 9);
+return 0;
 }
 
   )";

@@ -36,7 +36,7 @@ struct StringNode : ast {
 
 struct IntegerNode : ast {
   std::string val;
-  std::uint8_t size;
+  std::uint8_t size = 0;
   bool is_singed = true;
 
   IntegerNode(const std::string v, std::uint8_t siz, bool is_s)

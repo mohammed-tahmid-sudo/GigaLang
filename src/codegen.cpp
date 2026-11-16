@@ -2,7 +2,6 @@
 #include "utils.h"
 #include <alloca.h>
 #include <ast.h>
-#include <cctype>
 #include <colors.h>
 #include <cstddef>
 #include <iostream>
@@ -38,6 +37,48 @@
 #include <types.h>
 #include <vector>
 
+llvm::Value *castValue(llvm::IRBuilder<> &builder, llvm::Value *val,
+                       llvm::Type *targetType, bool sourceIsSigned,
+                       bool targetIsSigned) {
+  if (!val || !targetType)
+    return nullptr;
+
+  llvm::Type *srcType = val->getType();
+
+  if (srcType == targetType)
+    return val;
+
+  if (srcType->isIntegerTy() && targetType->isIntegerTy())
+    return builder.CreateIntCast(val, targetType, sourceIsSigned);
+
+  if (srcType->isIntegerTy() && targetType->isFloatingPointTy())
+    return sourceIsSigned ? builder.CreateSIToFP(val, targetType)
+                          : builder.CreateUIToFP(val, targetType);
+
+  if (srcType->isFloatingPointTy() && targetType->isIntegerTy())
+    return targetIsSigned ? builder.CreateFPToSI(val, targetType)
+                          : builder.CreateFPToUI(val, targetType);
+
+  if (srcType->isFloatingPointTy() && targetType->isFloatingPointTy())
+    return builder.CreateFPCast(val, targetType);
+
+  if (srcType->isPointerTy() && targetType->isPointerTy()) {
+    if (srcType->getPointerAddressSpace() ==
+        targetType->getPointerAddressSpace())
+      return builder.CreateBitCast(val, targetType);
+
+    return builder.CreateAddrSpaceCast(val, targetType);
+  }
+
+  if (srcType->isPointerTy() && targetType->isIntegerTy())
+    return builder.CreatePtrToInt(val, targetType);
+
+  if (srcType->isIntegerTy() && targetType->isPointerTy())
+    return builder.CreateIntToPtr(val, targetType);
+
+  return nullptr;
+}
+
 CodegenResults CharNode::codegen(CodegenContext &cc) {
   return {
       llvm::ConstantInt::get(llvm::Type::getInt8Ty(*cc.TheContext), val, false),
@@ -64,10 +105,11 @@ CodegenResults StringNode::codegen(CodegenContext &cc) {
 
 CodegenResults IntegerNode::codegen(CodegenContext &cc) {
   auto type = CreateSystemType(is_singed ? SINGED : UNSINGED, size);
+
   return {llvm::ConstantInt::get(
-              llvm::dyn_cast<llvm::IntegerType>(ComputeType(*type, cc)), val,
-              is_singed),
-          nullptr, CreateSystemType(is_singed ? SINGED : UNSINGED, size)};
+              llvm::dyn_cast<llvm::IntegerType>(ComputeType(*type, cc)),
+              std::stoll(val), is_singed),
+          nullptr, std::move(type)};
 }
 
 CodegenResults FloatNode::codegen(CodegenContext &cc) {
@@ -90,7 +132,11 @@ CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
   llvm::AllocaInst *alloca =
       cc.Builder->CreateAlloca(elementType, nullptr, name);
 
-  cc.Builder->CreateStore(result.ActualValue, alloca);
+  llvm::Value *castedValue = castValue(
+      *cc.Builder, result.ActualValue, elementType,
+      result.Type->kind ? SINGED : UNSINGED, type->kind ? SINGED : UNSINGED);
+
+  cc.Builder->CreateStore(castedValue, alloca);
 
   cc.addVariable(name, alloca, *type);
   return {cc.Builder->CreateLoad(elementType, alloca), alloca, std::move(type)};
@@ -832,48 +878,6 @@ CodegenResults DeReferenceNode::codegen(CodegenContext &cc) {
 
   return {cc.Builder->CreateLoad(elementType, ptrVal, "deref_" + name), ptrVal,
           std::make_unique<SystemType>(std::move(elementSystemType))};
-}
-
-llvm::Value *castValue(llvm::IRBuilder<> &builder, llvm::Value *val,
-                       llvm::Type *targetType, bool sourceIsSigned,
-                       bool targetIsSigned) {
-  if (!val || !targetType)
-    return nullptr;
-
-  llvm::Type *srcType = val->getType();
-
-  if (srcType == targetType)
-    return val;
-
-  if (srcType->isIntegerTy() && targetType->isIntegerTy())
-    return builder.CreateIntCast(val, targetType, sourceIsSigned);
-
-  if (srcType->isIntegerTy() && targetType->isFloatingPointTy())
-    return sourceIsSigned ? builder.CreateSIToFP(val, targetType)
-                          : builder.CreateUIToFP(val, targetType);
-
-  if (srcType->isFloatingPointTy() && targetType->isIntegerTy())
-    return targetIsSigned ? builder.CreateFPToSI(val, targetType)
-                          : builder.CreateFPToUI(val, targetType);
-
-  if (srcType->isFloatingPointTy() && targetType->isFloatingPointTy())
-    return builder.CreateFPCast(val, targetType);
-
-  if (srcType->isPointerTy() && targetType->isPointerTy()) {
-    if (srcType->getPointerAddressSpace() ==
-        targetType->getPointerAddressSpace())
-      return builder.CreateBitCast(val, targetType);
-
-    return builder.CreateAddrSpaceCast(val, targetType);
-  }
-
-  if (srcType->isPointerTy() && targetType->isIntegerTy())
-    return builder.CreatePtrToInt(val, targetType);
-
-  if (srcType->isIntegerTy() && targetType->isPointerTy())
-    return builder.CreateIntToPtr(val, targetType);
-
-  return nullptr;
 }
 
 CodegenResults CastNode::codegen(CodegenContext &cc) {

@@ -9,72 +9,204 @@ Big compiler developers, please don’t yell at me. I’m still a small compiler
 My dream is to make this compiler self-hosted. I know it’s a big dream, but who cares—you’re just dreaming too.
 
 ```ebnf
-Program Structure
-program         ::= header_section? { statement ";" }
+(* ========================= *)
+(* PROGRAM STRUCTURE          *)
+(* ========================= *)
 
-header_section  ::= { header_line ";" }
-header_line     ::= "@" ( "version" | "author" | "import" | "syscall" ) header_value
-header_value    ::= string_literal | syscall_signature
+Program           = { Statement | ";" } ;
 
-// Syscall signature
-syscall_signature ::= identifier "(" [ param_list ] ")"
+Statement         = VariableDeclaration
+                  | FunctionDeclaration
+                  | StructDeclaration
+                  | ReturnStatement
+                  | IfStatement
+                  | WhileStatement
+                  | ForStatement
+                  | CompoundStatement
+                  | BreakStatement
+                  | ContinueStatement
+                  | Expression ;
 
-// Statements
-statement       ::= var_decl
-                  | assignment
-                  | func_decl
-                  | if_stmt
-                  | for_stmt
-                  | while_stmt
-                  | class_decl
-                  | expr_stmt
-                  | print_stmt
 
-// Variable declaration & assignment
-var_decl        ::= "let" identifier ":" type "=" expr
-assignment      ::= identifier "=" expr
+(* ========================= *)
+(* DECLARATIONS               *)
+(* ========================= *)
 
-// Types
-type            ::= "Integer" | "Float" | "Boolean" | identifier | "Void" | "Char" | array_type 
-array_type      ::= type "[" [ integer_literal ] "]"
+VariableDeclaration
+                  = "let" Identifier ":" Type
+                    [ "=" Expression ] ";" ;
 
-// Expressions
-expr            ::= literal
-                  | identifier
-                  | expr binary_op expr
-                  | func_call
-                  | "(" expr ")"
+FunctionDeclaration
+                  = "func" Identifier "(" [ ParameterList ] ")"
+                    [ "->" Type ]
+                    Statement ;
 
-binary_op       ::= "+" | "-" | "*" | "/" | "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||"
+ParameterList     = Parameter
+                    { "," Parameter }
+                    [ "," "..." ] ;
 
-literal         ::= integer_literal
-                  | float_literal
-                  | boolean_literal
-                  | string_literal
+Parameter         = Identifier ":" Type ;
 
-// Functions
-func_decl       ::= "func" identifier "(" [ param_list ] ")" ["->" type] "{" { statement ";" } "}"
-param_list      ::= param { "," param }
-param           ::= identifier ":" type
-func_call       ::= identifier "(" [ arg_list ] ")"
-arg_list        ::= expr { "," expr }
+StructDeclaration = "struct" Identifier
+                    "[" FieldList "]" ";" ;
 
-// Conditionals
-if_stmt         ::= "if" expr "{" { statement ";" } "}" [ "else" "{" { statement ";" } "}" ]
+FieldList         = FieldDeclaration
+                    { "," FieldDeclaration } ;
 
-while_stmt      ::= "while" expr "{" { statement ";" } "}"
+FieldDeclaration  = Identifier ":" Type ;
 
-// Structs 
-struct_stmt     ::= "struct" name "[" Name:type "," ... "];"
 
-// Identifiers and literals
-identifier      ::= letter { letter | digit | "_" }
-integer_literal ::= digit { digit }
-float_literal   ::= digit { digit } "." digit { digit }
-boolean_literal ::= "true" | "false"
-string_literal  ::= '"' { any_character } '"'
+(* ========================= *)
+(* TYPES                      *)
+(* ========================= *)
 
-letter          ::= "a".."z" | "A".."Z"
-digit           ::= "0".."9"
-any_character   ::= ? any valid character ?
+Type              = { "*" } TypeName [ "[" Expression "]" ] ;
+
+TypeName          = PrimitiveType
+                  | Identifier ;
+
+PrimitiveType     = SignedIntegerType
+                  | UnsignedIntegerType
+                  | FloatingPointType
+                  | OtherPrimitiveType ;
+
+SignedIntegerType = "S8" | "S16" | "S32" | "S64" ;
+
+UnsignedIntegerType
+                  = "U8" | "U16" | "U32" | "U64" ;
+
+FloatingPointType = FloatTypeToken ;
+
+OtherPrimitiveType
+                  = OtherTypeToken ;
+
+
+(* ========================= *)
+(* STATEMENTS                 *)
+(* ========================= *)
+
+CompoundStatement = "{" { Statement | ";" } "}" ;
+
+ReturnStatement   = "return" [ Expression ] ";" ;
+
+IfStatement      = "if" "(" Expression ")" Statement
+                   [ "else" Statement ] ;
+
+WhileStatement   = "while" Expression Statement ;
+
+ForStatement     = "for" "(" Expression ";"
+                   Expression ";"
+                   Expression ")"
+                   Statement ;
+
+BreakStatement   = "break" ;
+
+ContinueStatement = "continue" ;
+
+
+(* ========================= *)
+(* EXPRESSIONS                *)
+(* ========================= *)
+
+Expression        = AssignmentExpression
+                    { "&&" ComparisonExpression } ;
+
+AssignmentExpression
+                  = ComparisonExpression
+                    [ "=" Expression ] ;
+
+ComparisonExpression
+                  = AdditiveExpression
+                    { ComparisonOperator AdditiveExpression } ;
+
+ComparisonOperator
+                  = "==" | "!="
+                  | "<"  | ">"
+                  | "<=" | ">=" ;
+
+AdditiveExpression
+                  = MultiplicativeExpression
+                    { ("+" | "-") MultiplicativeExpression } ;
+
+MultiplicativeExpression
+                  = FieldExpression
+                    { ("*" | "/") FieldExpression } ;
+
+FieldExpression   = Factor
+                    { ("." | "->") Identifier } ;
+
+
+(* ========================= *)
+(* FACTORS                    *)
+(* ========================= *)
+
+Factor            = IntegerLiteral
+                  | FloatLiteral
+                  | BooleanLiteral
+                  | StringLiteral
+                  | CharacterLiteral
+                  | ParenthesizedExpression
+                  | CastExpression
+                  | ArrayLiteral
+                  | FunctionCall
+                  | ArrayAccess
+                  | VariableReference
+                  | SizeOfExpression
+                  | SyscallExpression
+                  | AddressOfExpression
+                  | DereferenceExpression ;
+
+ParenthesizedExpression
+                  = "(" Expression ")" ;
+
+CastExpression    = "(" Type ")" Expression ;
+
+ArrayLiteral      = "[" [ Expression
+                    { "," Expression } ] "]" ;
+
+FunctionCall      = Identifier "(" [ ArgumentList ] ")" ;
+
+ArgumentList      = Expression { "," Expression } ;
+
+ArrayAccess       = Identifier "[" Expression "]" ;
+
+VariableReference = Identifier ;
+
+SizeOfExpression  = "sizeof" "(" Expression ")" ;
+
+SyscallExpression = "@Syscall" "(" IntegerLiteral
+                    "," ArgumentList ")" ;
+
+AddressOfExpression
+                  = "&%" Expression ;
+
+DereferenceExpression
+                  = "*" Identifier
+                    [ "[" Expression "]" ] ;
+
+
+(* ========================= *)
+(* LEXICAL ELEMENTS           *)
+(* ========================= *)
+
+Identifier        = IdentifierStart { IdentifierPart } ;
+
+IntegerLiteral    = Digit { Digit } ;
+
+FloatLiteral      = Digit { Digit } "." Digit { Digit } ;
+
+BooleanLiteral    = "true" | "false" ;
+
+StringLiteral     = '"' { StringCharacter } '"' ;
+
+CharacterLiteral  = "'" Character "'" ;
+
+Digit             = "0" | "1" | "2" | "3" | "4"
+                  | "5" | "6" | "7" | "8" | "9" ;
+
+IdentifierStart   = Letter | "_" ;
+
+IdentifierPart    = Letter | Digit | "_" ;
+
+Letter            = "A"…"Z" | "a"…"z" ;
 ```
