@@ -126,8 +126,19 @@ CodegenResults BooleanNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
+
   llvm::Type *elementType = ComputeType(*type, cc);
-  CodegenResults result = val->codegen(cc);
+  std::cout << "COMMING HERE\n";
+  CodegenResults result;
+  if (val) {
+    result = val->codegen(cc);
+  } else {
+    llvm::AllocaInst *alloca =
+        cc.Builder->CreateAlloca(elementType, nullptr, name);
+    cc.addVariable(name, alloca, *type);
+    return {cc.Builder->CreateLoad(elementType, alloca), alloca,
+            std::move(type)};
+  }
 
   llvm::AllocaInst *alloca =
       cc.Builder->CreateAlloca(elementType, nullptr, name);

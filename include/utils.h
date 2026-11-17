@@ -19,8 +19,8 @@
 extern bool debug_enabled;
 
 struct CodegenResults {
-  llvm::Value *ActualValue;
-  llvm::Value *ActualValueButAsAPointer;
+  llvm::Value *ActualValue = nullptr;
+  llvm::Value *ActualValueButAsAPointer = nullptr;
   std::unique_ptr<SystemType> Type;
 };
 
