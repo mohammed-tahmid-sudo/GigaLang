@@ -57,6 +57,13 @@ struct BooleanNode : ast {
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
+// struct StringNode : ast {
+//   std::string val;
+//   StringNode(const std::string &v) : val(v) {}
+//
+//   CodegenResults codegen(CodegenContext &cc) override;
+// };
+
 struct VariableDeclareNode : ast {
   std::string name;
   std::unique_ptr<ast> val;
@@ -198,6 +205,23 @@ struct ArrayAccessNode : ast {
 
   ArrayAccessNode(const std::string &name, std::unique_ptr<ast> index)
       : arrayName(name), indexExpr(std::move(index)) {}
+
+  CodegenResults codegen(CodegenContext &cc) override;
+};
+
+struct SizeOfNode : ast {
+  std::unique_ptr<ast> val;
+
+  SizeOfNode(std::unique_ptr<ast> valval) : val(std::move(valval)) {}
+
+  CodegenResults codegen(CodegenContext &cc) override;
+};
+
+struct SyscallNode : ast {
+  int name;
+  std::vector<std::unique_ptr<ast>> args;
+  SyscallNode(int syscall_name, std::vector<std::unique_ptr<ast>> syscall_args)
+      : name(syscall_name), args(std::move(syscall_args)) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
 };
