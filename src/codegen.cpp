@@ -278,7 +278,6 @@ CodegenResults VariableReferenceNode::codegen(CodegenContext &cc) {
   //   }
   // }
   if (type.is_arr) {
-    std::cout << "COMMING HERE VARREF" << std::endl;
     return {ptr, ptr, std::make_unique<SystemType>(type)};
   }
 
@@ -418,6 +417,7 @@ CodegenResults BinaryOperationNode::codegen(CodegenContext &cc) {
   case TokenType::MINUS:
   case TokenType::STAR:
   case TokenType::SLASH: {
+
     auto *i32 = llvm::Type::getInt32Ty(*cc.TheContext);
 
     if (LT->isIntegerTy(1))
@@ -429,6 +429,57 @@ CodegenResults BinaryOperationNode::codegen(CodegenContext &cc) {
     LT = LHS->getType();
     RT = RHS->getType();
 
+    // Pointer arithmetic
+    if (LT->isPointerTy() || RT->isPointerTy()) {
+
+      // Pointer - Integer or Pointer + Integer
+      if (LT->isPointerTy() && RT->isIntegerTy()) {
+
+        if (Type != TokenType::PLUS && Type != TokenType::MINUS)
+          throw std::runtime_error("Invalid pointer arithmetic");
+
+        SystemType elementType = *L.Type;
+        elementType.ptrdepth--;
+
+        if (elementType.ptrdepth == 0)
+          elementType.is_ptr = false;
+
+        llvm::Type *llvmElementType = ComputeType(elementType, cc);
+
+        if (Type == TokenType::MINUS)
+          RHS = cc.Builder->CreateNeg(RHS, "negidx");
+
+        llvm::Value *result =
+            cc.Builder->CreateGEP(llvmElementType, LHS, RHS, "ptr_arith");
+
+        return {result, result, std::make_unique<SystemType>(*L.Type)};
+      }
+
+      // Integer + Pointer
+      if (LT->isIntegerTy() && RT->isPointerTy()) {
+
+        if (Type != TokenType::PLUS)
+          throw std::runtime_error("Invalid pointer arithmetic");
+
+        SystemType elementType = *R.Type;
+        elementType.ptrdepth--;
+
+        if (elementType.ptrdepth == 0)
+          elementType.is_ptr = false;
+
+        llvm::Type *llvmElementType = ComputeType(elementType, cc);
+
+        llvm::Value *result =
+            cc.Builder->CreateGEP(llvmElementType, RHS, LHS, "ptr_arith");
+
+        return {result, result, std::make_unique<SystemType>(*R.Type)};
+      }
+
+      throw std::runtime_error(
+          "Cannot perform arithmetic on incompatible pointers");
+    }
+
+    // Normal integer arithmetic
     if (LT != RT) {
       if (LT->isIntegerTy() && RT->isIntegerTy())
         RHS = cc.Builder->CreateIntCast(RHS, LT, true);
@@ -443,28 +494,34 @@ CodegenResults BinaryOperationNode::codegen(CodegenContext &cc) {
     case TokenType::PLUS:
       result = cc.Builder->CreateAdd(LHS, RHS, "addtmp");
       break;
+
     case TokenType::MINUS:
       result = cc.Builder->CreateSub(LHS, RHS, "subtmp");
       break;
+
     case TokenType::STAR:
       result = cc.Builder->CreateMul(LHS, RHS, "multmp");
       break;
+
     case TokenType::SLASH:
       result = cc.Builder->CreateSDiv(LHS, RHS, "divtmp");
       break;
+
     default:
       break;
     }
 
-    return {result, nullptr, std::make_unique<SystemType>(*L.Type)};
+    return {result, result, std::make_unique<SystemType>(*L.Type)};
   }
 
+  // Comparisons
   case TokenType::EQEQ:
   case TokenType::NOTEQ:
   case TokenType::GTE:
   case TokenType::LTE:
   case TokenType::GT:
   case TokenType::LT: {
+
     if (LT != RT) {
       if (LT->isIntegerTy() && RT->isIntegerTy())
         RHS = cc.Builder->CreateIntCast(RHS, LT, true);
@@ -478,21 +535,27 @@ CodegenResults BinaryOperationNode::codegen(CodegenContext &cc) {
     case TokenType::EQEQ:
       result = cc.Builder->CreateICmpEQ(LHS, RHS, "eqtmp");
       break;
+
     case TokenType::NOTEQ:
       result = cc.Builder->CreateICmpNE(LHS, RHS, "netmp");
       break;
+
     case TokenType::GTE:
       result = cc.Builder->CreateICmpSGE(LHS, RHS, "gtetmp");
       break;
+
     case TokenType::LTE:
       result = cc.Builder->CreateICmpSLE(LHS, RHS, "ltetmp");
       break;
+
     case TokenType::GT:
       result = cc.Builder->CreateICmpSGT(LHS, RHS, "gttmp");
       break;
+
     case TokenType::LT:
       result = cc.Builder->CreateICmpSLT(LHS, RHS, "lttmp");
       break;
+
     default:
       break;
     }
@@ -501,10 +564,12 @@ CodegenResults BinaryOperationNode::codegen(CodegenContext &cc) {
     resultType->kind = UNSINGED;
     resultType->size = 1;
 
-    return {result, nullptr, std::move(resultType)};
+    return {result, result, std::move(resultType)};
   }
 
+  // Logical AND
   case TokenType::AND: {
+
     if (!LT->isIntegerTy(1))
       LHS = cc.Builder->CreateICmpNE(LHS, llvm::ConstantInt::get(LT, 0),
                                      "lhsbool");
@@ -519,7 +584,7 @@ CodegenResults BinaryOperationNode::codegen(CodegenContext &cc) {
     resultType->kind = UNSINGED;
     resultType->size = 1;
 
-    return {result, nullptr, std::move(resultType)};
+    return {result, result, std::move(resultType)};
   }
 
   default:
@@ -872,8 +937,11 @@ CodegenResults PointerReferenceNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults DeReferenceNode::codegen(CodegenContext &cc) {
-  std::cout << "COMMING HER DEREFERNCE\n";
-  
+  CodegenResults res = val->codegen(cc);
+
+  return {cc.Builder->CreateLoad(ComputeType(*res.Type, cc),
+                                 res.ActualValueButAsAPointer, "loaded_ptr"),
+          res.ActualValueButAsAPointer, std::move(res.Type)};
 }
 
 CodegenResults CastNode::codegen(CodegenContext &cc) {

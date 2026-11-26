@@ -113,7 +113,6 @@ SystemType Parser::ParseType() {
   }
 
   if (Peek().type == IDENTIFIER) {
-    std::cout << "TRUCT NAME: " << Peek().value << std::endl;
     output.struct_name = Peek().value;
   }
 
@@ -170,23 +169,20 @@ std::unique_ptr<ast> Parser::ParseFactor() {
 
   else if (Peek().type == TokenType::LPAREN) {
     Consume();
-
-    if (Peek().type == TYPES || Peek().type == IDENTIFIER) {
+    if (auto val = ParseExpression()) {
+      Expect(TokenType::RPAREN);
+      return val;
+    } else {
       SystemType ActualType = ParseType();
       // Consume();
       Expect(RPAREN);
-      auto val = ParseExpression();
+      auto v = ParseExpression();
 
       return std::make_unique<CastNode>(
-          std::move(val), std::make_unique<SystemType>(ActualType));
+          std::move(v), std::make_unique<SystemType>(ActualType));
     }
+    throw std::runtime_error("VAL IS A NULLPTR");
 
-    auto val = ParseExpression();
-    if (!val) {
-      throw std::runtime_error("VAL IS A NULLPTR");
-    }
-    Expect(TokenType::RPAREN);
-    return val;
   } else if (Peek().type == TokenType::LBRACKET) {
     Consume();
     std::vector<std::unique_ptr<ast>> elements;
@@ -284,19 +280,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     Consume();
     // std::cout << "STARPARS PEEK:" << Peek().value << "\n";
 
-    if (Peek().type == IDENTIFIER) {
-      Token v = Peek();
-      Consume();
-      if (Peek().type == LBRACKET) {
-        Consume();
-        auto idx = ParseExpression();
-        Expect(RBRACKET);
-
-        return std::make_unique<DeReferenceNode>(v.value, std::move(idx));
-      }
-
-      return std::make_unique<DeReferenceNode>(v.value, nullptr);
-    }
+    return std::make_unique<DeReferenceNode>(ParseExpression());
     return nullptr;
   } else {
     if (Peek().type == SEMICOLON) {
@@ -487,7 +471,6 @@ std::unique_ptr<FunctionNode> Parser::ParseFunction() {
   } else {
     Expect(DASHGREATER);
     if (Peek().type == TYPES || Peek().type == IDENTIFIER) {
-      std::cout << Peek().value << std::endl;
       rettype = ParseType();
     }
   }
@@ -526,7 +509,6 @@ std::unique_ptr<ReturnNode> Parser::ParseReturn() {
   Expect(RETURN);
   auto val = ParseExpression();
 
-  std::cout << "COMMING HERE RETPARS and Peek: " << Peek().value << std::endl;
   Expect(SEMICOLON);
   return std::make_unique<ReturnNode>(std::move(val));
 }
@@ -602,10 +584,8 @@ std::unique_ptr<StructCreateNode> Parser::ParseStruct() {
     Token identifier = Expect(IDENTIFIER);
     Expect(COLON);
 
-    std::cout << "COMMINGG HERE" << std::endl;
     SystemType type;
     type = ParseType();
-    std::cout << "type.is_ptr: " << type.is_ptr << std::endl;
 
     types.emplace(identifier.value, std::make_unique<SystemType>(type));
 
@@ -721,10 +701,10 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
 
 int main() {
   std::string src = R"(
-  func main() -> U32 {
+  func main() -> S32 {
   	let a:U32[5] = [12, 22, 3, 4, 5];
 	let b:*U32 = a;
-	return *(b + 1) ; 
+	return *(b + 1); 
   }
 
   )";
