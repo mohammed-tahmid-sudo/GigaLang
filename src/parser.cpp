@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <llvm-21/llvm/Support/AtomicOrdering.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRPrintingPasses.h>
@@ -180,7 +181,7 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     Expect(TokenType::RPAREN);
     return val;
   } else if (Peek().type == TokenType::LBRACKET) {
-    Expect(TokenType::LBRACKET);
+    Consume();
     std::vector<std::unique_ptr<ast>> elements;
 
     while (Peek().type != TokenType::RBRACKET) {
@@ -412,11 +413,12 @@ std::unique_ptr<VariableDeclareNode> Parser::ParseVariable() {
   Expect(TokenType::COLON);
   SystemType type;
 
-  if (Peek().type == TokenType::TYPES || Peek().type == TokenType::IDENTIFIER) {
-    type = ParseType();
-  } else {
-    throw std::runtime_error("Expected TYPES or IDENTIFIER");
-  }
+  // if (Peek().type == TokenType::TYPES || Peek().type ==
+  // TokenType::IDENTIFIER) {
+  type = ParseType();
+  // } else {
+  //   throw std::runtime_error("Expected TYPES or IDENTIFIER");
+  // }
   std::unique_ptr<ast> val = nullptr;
   if (Peek().type == TokenType::EQ) {
     Consume();
@@ -708,91 +710,75 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
   std::cout << "Executable created: " << exeFile << std::endl;
 }
 
-// int main() {
-//   std::string src = R"(
-//   struct person [
-//   	name:*U8,
-// 	age:U8
-//   ];
-//
-//   struct ppl [
-// 	tahmid:*person
-//   ];
-//
-// func main() -> S8 {
-// 	let p:person;
-// 	p.name = "tahmid";
-// 	p.age = 18;
-//
-// 	let manyppl:ppl;
-// 	manyppl.tahmid = &p;
-//
-// 	@Syscall(1, 1, manyppl.tahmid->name, 8);
-//
-// 	return 0;
-// }
-//
-//   )";
-//
-//   std::vector<std::string> sourceLines;
-//   {
-//     std::istringstream ss(src);
-//     std::string line;
-//     while (std::getline(ss, line))
-//       sourceLines.push_back(line);
-//   }
-//
-//   Diagnostics diag(sourceLines);
-//
-//   // --- Lexical Analysis ---
-//   Lexer lexer(src);
-//   auto program = lexer.lexer();
-//
-//   std::cout << "Tokens:\n";
-//   int count = 0;
-//   for (const auto &stmt : program) {
-//     std::cout << tokenName(stmt.type) << ":'" << stmt.value << "'  ";
-//     count++;
-//     if (count % 5 == 0) // 5 tokens per line
-//       std::cout << "\n";
-//   }
-//   if (count % 5 != 0)
-//     std::cout << "\n"; // print final newline if needed
-//
-//   std::cout << Colors::BOLD << Colors::RED
-//             << "\n-------------------------------PARSED-AST--------------------"
-//                "------------------\n"
-//             << Colors::RESET << std::endl;
-//
-//   // --- Parsing ---
-//   Parser parser(program, "MYMODULE", diag);
-//   auto astNodes = parser.Parse();
-//
-//   // std::cout << "AST Nodes:\n";
-//   // for (auto &v : astNodes) {
-//   //   std::cout << v->repr() << std::endl;
-//   // }
-//
-//   auto &cc = parser.getCodegenContext();
-//   for (auto &v : astNodes) {
-//     try {
-//       v->codegen(cc);
-//     } catch (const std::exception &e) {
-//       std::cerr << "Codegen error: " << e.what() << std::endl;
-//     }
-//   }
-//
-//   std::cout << Colors::BOLD << Colors::RED
-//             << "\n-------------------------------LLVM_IR-----------------------"
-//                "---------------\n"
-//             << Colors::RESET << std::endl;
-//   printIRWithLineNumbers(cc.Module.get());
-//
-//   std::cout << Colors::BOLD << Colors::RED
-//             << "\n-------------------------------COMPILED_OUTPUT---------------"
-//                "-----------------------\n"
-//             << Colors::RESET << std::endl;
-//
-//   saveIRAndCompile(cc.Module.get(), "output");
-//   return 0;
-// }
+int main() {
+  std::string src = R"(
+  func main() -> U32 {
+  	let a:U32[5] = [1, 2, 3, 4, 5];
+	let b:*U32 = a[0];
+	return *b; 
+  }
+
+  )";
+
+  std::vector<std::string> sourceLines;
+  {
+    std::istringstream ss(src);
+    std::string line;
+    while (std::getline(ss, line))
+      sourceLines.push_back(line);
+  }
+
+  Diagnostics diag(sourceLines);
+
+  // --- Lexical Analysis ---
+  Lexer lexer(src);
+  auto program = lexer.lexer();
+
+  std::cout << "Tokens:\n";
+  int count = 0;
+  for (const auto &stmt : program) {
+    std::cout << tokenName(stmt.type) << ":'" << stmt.value << "'  ";
+    count++;
+    if (count % 5 == 0) // 5 tokens per line
+      std::cout << "\n";
+  }
+  if (count % 5 != 0)
+    std::cout << "\n"; // print final newline if needed
+
+  std::cout << Colors::BOLD << Colors::RED
+            << "\n-------------------------------PARSED-AST--------------------"
+               "------------------\n"
+            << Colors::RESET << std::endl;
+
+  // --- Parsing ---
+  Parser parser(program, "MYMODULE", diag);
+  auto astNodes = parser.Parse();
+
+  // std::cout << "AST Nodes:\n";
+  // for (auto &v : astNodes) {
+  //   std::cout << v->repr() << std::endl;
+  // }
+
+  auto &cc = parser.getCodegenContext();
+  for (auto &v : astNodes) {
+    try {
+      v->codegen(cc);
+    } catch (const std::exception &e) {
+      std::cerr << "Codegen error: " << e.what() << std::endl;
+    }
+  }
+
+  std::cout << Colors::BOLD << Colors::RED
+            << "\n-------------------------------LLVM_IR-----------------------"
+               "---------------\n"
+            << Colors::RESET << std::endl;
+  printIRWithLineNumbers(cc.Module.get());
+
+  std::cout << Colors::BOLD << Colors::RED
+            << "\n-------------------------------COMPILED_OUTPUT---------------"
+               "-----------------------\n"
+            << Colors::RESET << std::endl;
+
+  saveIRAndCompile(cc.Module.get(), "output");
+  return 0;
+}

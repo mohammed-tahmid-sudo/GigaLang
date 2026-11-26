@@ -76,7 +76,7 @@ llvm::Value *castValue(llvm::IRBuilder<> &builder, llvm::Value *val,
   if (srcType->isIntegerTy() && targetType->isPointerTy())
     return builder.CreateIntToPtr(val, targetType);
 
-  return nullptr;
+  return val;
 }
 
 CodegenResults CharNode::codegen(CodegenContext &cc) {
@@ -128,7 +128,7 @@ CodegenResults BooleanNode::codegen(CodegenContext &cc) {
 CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
 
   llvm::Type *elementType = ComputeType(*type, cc);
-  std::cout << "COMMING HERE\n";
+  std::cout << "Is Arr: " << elementType->isArrayTy() << std::endl;
   CodegenResults result;
   if (val) {
     result = val->codegen(cc);
@@ -142,11 +142,16 @@ CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
 
   llvm::AllocaInst *alloca =
       cc.Builder->CreateAlloca(elementType, nullptr, name);
+  if (!result.ActualValue) {
+    llvm::errs() << "Original value is null!\n";
+    return {};
+  }
 
   llvm::Value *castedValue = castValue(
       *cc.Builder, result.ActualValue, elementType,
       result.Type->kind ? SINGED : UNSINGED, type->kind ? SINGED : UNSINGED);
 
+  std::cout << "COMMING HERE VAR DECL" << std::endl;
   cc.Builder->CreateStore(castedValue, alloca);
 
   cc.addVariable(name, alloca, *type);
@@ -715,9 +720,6 @@ CodegenResults ArrayLiteralNode::codegen(CodegenContext &cc) {
   auto resultType = std::make_unique<SystemType>();
   resultType->is_arr = true;
   resultType->size_arr = constantValues.size();
-
-  // Populate the element type metadata here.
-  // SystemType currently has no separate element-type field.
 
   return {llvm::ConstantArray::get(arrayType, constantValues), nullptr,
           std::move(resultType)};

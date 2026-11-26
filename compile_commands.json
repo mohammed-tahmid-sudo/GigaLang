@@ -1,38 +1,44 @@
 [
 {
-  "directory": "/home/tahmid/video/GigaLang/build",
-  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/video/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/Diagnogsis.cpp.o -c /home/tahmid/video/GigaLang/src/Diagnogsis.cpp",
-  "file": "/home/tahmid/video/GigaLang/src/Diagnogsis.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/Diagnogsis.cpp.o -c /home/tahmid/GigaLang/src/Diagnogsis.cpp",
+  "file": "/home/tahmid/GigaLang/src/Diagnogsis.cpp",
   "output": "CMakeFiles/GigaLang.dir/src/Diagnogsis.cpp.o"
 },
 {
-  "directory": "/home/tahmid/video/GigaLang/build",
-  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/video/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/codegen.cpp.o -c /home/tahmid/video/GigaLang/src/codegen.cpp",
-  "file": "/home/tahmid/video/GigaLang/src/codegen.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/codegen.cpp.o -c /home/tahmid/GigaLang/src/codegen.cpp",
+  "file": "/home/tahmid/GigaLang/src/codegen.cpp",
   "output": "CMakeFiles/GigaLang.dir/src/codegen.cpp.o"
 },
 {
-  "directory": "/home/tahmid/video/GigaLang/build",
-  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/video/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/lexer.cpp.o -c /home/tahmid/video/GigaLang/src/lexer.cpp",
-  "file": "/home/tahmid/video/GigaLang/src/lexer.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/lexer.cpp.o -c /home/tahmid/GigaLang/src/lexer.cpp",
+  "file": "/home/tahmid/GigaLang/src/lexer.cpp",
   "output": "CMakeFiles/GigaLang.dir/src/lexer.cpp.o"
 },
 {
-  "directory": "/home/tahmid/video/GigaLang/build",
-  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/video/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/main.cpp.o -c /home/tahmid/video/GigaLang/src/main.cpp",
-  "file": "/home/tahmid/video/GigaLang/src/main.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/main.cpp.o -c /home/tahmid/GigaLang/src/main.cpp",
+  "file": "/home/tahmid/GigaLang/src/main.cpp",
   "output": "CMakeFiles/GigaLang.dir/src/main.cpp.o"
 },
 {
-  "directory": "/home/tahmid/video/GigaLang/build",
-  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/video/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/parser.cpp.o -c /home/tahmid/video/GigaLang/src/parser.cpp",
-  "file": "/home/tahmid/video/GigaLang/src/parser.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/parser.cpp.o -c /home/tahmid/GigaLang/src/parser.cpp",
+  "file": "/home/tahmid/GigaLang/src/parser.cpp",
   "output": "CMakeFiles/GigaLang.dir/src/parser.cpp.o"
 },
 {
-  "directory": "/home/tahmid/video/GigaLang/build",
-  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/video/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/types.cpp.o -c /home/tahmid/video/GigaLang/src/types.cpp",
-  "file": "/home/tahmid/video/GigaLang/src/types.cpp",
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/types.cpp.o -c /home/tahmid/GigaLang/src/types.cpp",
+  "file": "/home/tahmid/GigaLang/src/types.cpp",
   "output": "CMakeFiles/GigaLang.dir/src/types.cpp.o"
+},
+{
+  "directory": "/home/tahmid/GigaLang/build",
+  "command": "/usr/bin/c++ -D_GNU_SOURCE -DEXPERIMENTAL_KEY_INSTRUCTIONS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/home/tahmid/GigaLang/include -isystem /usr/lib/llvm-21/include -g -std=c++17 -fexceptions -g -Wall -Wextra -o CMakeFiles/GigaLang.dir/src/utils.cpp.o -c /home/tahmid/GigaLang/src/utils.cpp",
+  "file": "/home/tahmid/GigaLang/src/utils.cpp",
+  "output": "CMakeFiles/GigaLang.dir/src/utils.cpp.o"
 }
 ]
