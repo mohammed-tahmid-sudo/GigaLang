@@ -689,40 +689,59 @@ CodegenResults ArrayLiteralNode::codegen(CodegenContext &cc) {
             std::move(resultType)};
   }
 
-  std::vector<llvm::Constant *> constantValues;
+  std::vector<CodegenResults> values;
+  std::vector<llvm::Constant *> constants;
+
+  bool allConstant = true;
 
   for (auto &element : Elements) {
-    CodegenResults result = element->codegen(cc);
+    auto result = element->codegen(cc);
 
     if (!result.ActualValue)
       throw std::runtime_error("Invalid array element");
 
     auto *constant = llvm::dyn_cast<llvm::Constant>(result.ActualValue);
 
-    if (!constant)
-      throw std::runtime_error(
-          "Array literal elements must be compile-time constants");
+    if (constant)
+      constants.push_back(constant);
+    else
+      allConstant = false;
 
-    constantValues.push_back(constant);
+    values.push_back(std::move(result));
   }
 
-  llvm::Type *elementType = constantValues[0]->getType();
+  llvm::Type *elementType = values[0].ActualValue->getType();
 
-  for (auto *value : constantValues) {
-    if (value->getType() != elementType)
+  for (auto &value : values) {
+    if (value.ActualValue->getType() != elementType)
       throw std::runtime_error(
           "Array literal elements must have matching types");
   }
 
-  llvm::ArrayType *arrayType =
-      llvm::ArrayType::get(elementType, constantValues.size());
+  auto *arrayType = llvm::ArrayType::get(elementType, values.size());
 
   auto resultType = std::make_unique<SystemType>();
   resultType->is_arr = true;
-  resultType->size_arr = constantValues.size();
+  resultType->size_arr = values.size();
 
-  return {llvm::ConstantArray::get(arrayType, constantValues), nullptr,
-          std::move(resultType)};
+  // Compile-time constant array
+  if (allConstant) {
+    return {llvm::ConstantArray::get(arrayType, constants), nullptr,
+            std::move(resultType)};
+  }
+
+  // Runtime array
+  auto *array = cc.Builder->CreateAlloca(arrayType, nullptr, "array");
+
+  for (size_t i = 0; i < values.size(); i++) {
+    auto *elementPtr = cc.Builder->CreateInBoundsGEP(
+        arrayType, array, {cc.Builder->getInt32(0), cc.Builder->getInt32(i)},
+        "elementptr");
+
+    cc.Builder->CreateStore(values[i].ActualValue, elementPtr);
+  }
+
+  return {array, array, std::move(resultType)};
 }
 
 CodegenResults SizeOfNode::codegen(CodegenContext &cc) {
