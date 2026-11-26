@@ -234,11 +234,9 @@ struct PointerReferenceNode : ast {
 };
 
 struct DeReferenceNode : ast {
-  std::string name;
-  std::unique_ptr<ast> index;
+  std::unique_ptr<ast> val;
 
-  DeReferenceNode(const std::string &n, std::unique_ptr<ast> idx)
-      : name(n), index(std::move(idx)) {}
+  DeReferenceNode(std::unique_ptr<ast> v) : val(std::move(v)) {}
 
   CodegenResults codegen(CodegenContext &cc) override;
 };

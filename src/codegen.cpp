@@ -128,7 +128,6 @@ CodegenResults BooleanNode::codegen(CodegenContext &cc) {
 CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
 
   llvm::Type *elementType = ComputeType(*type, cc);
-  std::cout << "Is Arr: " << elementType->isArrayTy() << std::endl;
   CodegenResults result;
   if (val) {
     result = val->codegen(cc);
@@ -151,7 +150,6 @@ CodegenResults VariableDeclareNode::codegen(CodegenContext &cc) {
       *cc.Builder, result.ActualValue, elementType,
       result.Type->kind ? SINGED : UNSINGED, type->kind ? SINGED : UNSINGED);
 
-  std::cout << "COMMING HERE VAR DECL" << std::endl;
   cc.Builder->CreateStore(castedValue, alloca);
 
   cc.addVariable(name, alloca, *type);
@@ -279,6 +277,10 @@ CodegenResults VariableReferenceNode::codegen(CodegenContext &cc) {
   //     ptr.second = it->second;
   //   }
   // }
+  if (type.is_arr) {
+    std::cout << "COMMING HERE VARREF" << std::endl;
+    return {ptr, ptr, std::make_unique<SystemType>(type)};
+  }
 
   return {cc.Builder->CreateLoad(ComputeType(type, cc), ptr, Name), ptr,
           std::make_unique<SystemType>(type)};
@@ -712,12 +714,6 @@ CodegenResults ArrayLiteralNode::codegen(CodegenContext &cc) {
 
   llvm::Type *elementType = values[0].ActualValue->getType();
 
-  for (auto &value : values) {
-    if (value.ActualValue->getType() != elementType)
-      throw std::runtime_error(
-          "Array literal elements must have matching types");
-  }
-
   auto *arrayType = llvm::ArrayType::get(elementType, values.size());
 
   auto resultType = std::make_unique<SystemType>();
@@ -876,40 +872,8 @@ CodegenResults PointerReferenceNode::codegen(CodegenContext &cc) {
 }
 
 CodegenResults DeReferenceNode::codegen(CodegenContext &cc) {
-  auto [var, type] = cc.lookupVariable(name);
-
-  if (!var)
-    throw std::runtime_error("Unknown variable: " + name);
-
-  if (!type.is_ptr || type.ptrdepth == 0)
-    throw std::runtime_error("'" + name + "' is not a pointer");
-
-  SystemType elementSystemType = type;
-  elementSystemType.is_ptr = false;
-  elementSystemType.ptrdepth = 0;
-
-  if (type.ptrdepth > 1) {
-    elementSystemType.is_ptr = true;
-    elementSystemType.ptrdepth = type.ptrdepth - 1;
-  }
-
-  llvm::Type *pointerType = ComputeType(type, cc);
-  llvm::Type *elementType = ComputeType(elementSystemType, cc);
-
-  llvm::Value *ptrVal = cc.Builder->CreateLoad(pointerType, var, name + "_ptr");
-
-  if (index) {
-    CodegenResults idx = index->codegen(cc);
-
-    if (!idx.ActualValue)
-      throw std::runtime_error("Invalid pointer index");
-
-    ptrVal =
-        cc.Builder->CreateGEP(elementType, ptrVal, idx.ActualValue, "ptr_elem");
-  }
-
-  return {cc.Builder->CreateLoad(elementType, ptrVal, "deref_" + name), ptrVal,
-          std::make_unique<SystemType>(std::move(elementSystemType))};
+  std::cout << "COMMING HER DEREFERNCE\n";
+  
 }
 
 CodegenResults CastNode::codegen(CodegenContext &cc) {

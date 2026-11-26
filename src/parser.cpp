@@ -30,26 +30,33 @@
 #include <parser.h>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-std::uint8_t GetIntegerSize(const std::string &str) {
-  int64_t value;
+std::uint16_t GetIntegerSize(std::string_view str) {
+  llvm::APInt value(1024, str, 10);
 
-  auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value);
-
-  if (ec != std::errc{} || ptr != str.data() + str.size())
-    return 0;
-
-  if (value >= INT8_MIN && value <= INT8_MAX)
-    return 8;
-
-  if (value >= INT16_MIN && value <= INT16_MAX)
-    return 16;
-  if (value >= INT32_MIN && value <= INT32_MAX)
+  if (value.isSignedIntN(32))
     return 32;
-  return 64;
+
+  if (value.isSignedIntN(64))
+    return 64;
+
+  if (value.isSignedIntN(128))
+    return 128;
+
+  if (value.isSignedIntN(256))
+    return 256;
+
+  if (value.isSignedIntN(512))
+    return 512;
+
+  if (value.isSignedIntN(1024))
+    return 1024;
+
+  return 0;
 }
 
 Token Parser::Peek() {
@@ -274,8 +281,9 @@ std::unique_ptr<ast> Parser::ParseFactor() {
     Consume();
     return std::make_unique<PointerReferenceNode>(ParseExpression());
   } else if (Peek().type == STAR) {
-
     Consume();
+    // std::cout << "STARPARS PEEK:" << Peek().value << "\n";
+
     if (Peek().type == IDENTIFIER) {
       Token v = Peek();
       Consume();
@@ -518,6 +526,7 @@ std::unique_ptr<ReturnNode> Parser::ParseReturn() {
   Expect(RETURN);
   auto val = ParseExpression();
 
+  std::cout << "COMMING HERE RETPARS and Peek: " << Peek().value << std::endl;
   Expect(SEMICOLON);
   return std::make_unique<ReturnNode>(std::move(val));
 }
@@ -713,9 +722,9 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
 int main() {
   std::string src = R"(
   func main() -> U32 {
-  	let a:U32[5] = [1, 2, 3, 4, 5];
-	let b:*U32 = a[0];
-	return *b; 
+  	let a:U32[5] = [12, 22, 3, 4, 5];
+	let b:*U32 = a;
+	return *(b + 1) ; 
   }
 
   )";
