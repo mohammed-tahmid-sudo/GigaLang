@@ -805,10 +805,6 @@ CodegenResults ArrayLiteralNode::codegen(CodegenContext &cc) {
   return {array, array, std::move(resultType)};
 }
 
-CodegenResults SizeOfNode::codegen(CodegenContext &cc) {
-  std::cerr << "SIZEOF DOES NOT WORK FOR NOT" << std::endl;
-  return {nullptr, nullptr, nullptr};
-}
 
 CodegenResults ArrayAccessNode::codegen(CodegenContext &cc) {
   auto [arrayPtr, arrayType] = cc.lookupVariable(arrayName);
@@ -938,8 +934,10 @@ CodegenResults PointerReferenceNode::codegen(CodegenContext &cc) {
 
 CodegenResults DeReferenceNode::codegen(CodegenContext &cc) {
   CodegenResults res = val->codegen(cc);
+  SystemType holdertype = *res.Type;
+  holdertype.is_ptr = false;
 
-  return {cc.Builder->CreateLoad(ComputeType(*res.Type, cc),
+  return {cc.Builder->CreateLoad(ComputeType(holdertype, cc),
                                  res.ActualValueButAsAPointer, "loaded_ptr"),
           res.ActualValueButAsAPointer, std::move(res.Type)};
 }

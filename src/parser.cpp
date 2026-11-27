@@ -244,13 +244,6 @@ std::unique_ptr<ast> Parser::ParseFactor() {
                                std::to_string(val.value.size()));
     }
     return std::make_unique<CharNode>(val.value[0]);
-  } else if (Peek().type == SIZEOF) {
-    Consume();
-    Expect(LPAREN);
-    auto val = ParseExpression();
-    Expect(RPAREN);
-
-    return std::make_unique<SizeOfNode>(std::move(val));
   } else if (Peek().type == SYSCALL) {
     Consume();
     Expect(LPAREN);
@@ -699,75 +692,75 @@ void saveIRAndCompile(llvm::Module *module, const std::string &filename) {
   std::cout << "Executable created: " << exeFile << std::endl;
 }
 
-int main() {
-  std::string src = R"(
-  func main() -> S32 {
-  	let a:U32[5] = [12, 22, 3, 4, 5];
-	let b:*U32 = a;
-	return *(b + 1); 
-  }
-
-  )";
-
-  std::vector<std::string> sourceLines;
-  {
-    std::istringstream ss(src);
-    std::string line;
-    while (std::getline(ss, line))
-      sourceLines.push_back(line);
-  }
-
-  Diagnostics diag(sourceLines);
-
-  // --- Lexical Analysis ---
-  Lexer lexer(src);
-  auto program = lexer.lexer();
-
-  std::cout << "Tokens:\n";
-  int count = 0;
-  for (const auto &stmt : program) {
-    std::cout << tokenName(stmt.type) << ":'" << stmt.value << "'  ";
-    count++;
-    if (count % 5 == 0) // 5 tokens per line
-      std::cout << "\n";
-  }
-  if (count % 5 != 0)
-    std::cout << "\n"; // print final newline if needed
-
-  std::cout << Colors::BOLD << Colors::RED
-            << "\n-------------------------------PARSED-AST--------------------"
-               "------------------\n"
-            << Colors::RESET << std::endl;
-
-  // --- Parsing ---
-  Parser parser(program, "MYMODULE", diag);
-  auto astNodes = parser.Parse();
-
-  // std::cout << "AST Nodes:\n";
-  // for (auto &v : astNodes) {
-  //   std::cout << v->repr() << std::endl;
-  // }
-
-  auto &cc = parser.getCodegenContext();
-  for (auto &v : astNodes) {
-    try {
-      v->codegen(cc);
-    } catch (const std::exception &e) {
-      std::cerr << "Codegen error: " << e.what() << std::endl;
-    }
-  }
-
-  std::cout << Colors::BOLD << Colors::RED
-            << "\n-------------------------------LLVM_IR-----------------------"
-               "---------------\n"
-            << Colors::RESET << std::endl;
-  printIRWithLineNumbers(cc.Module.get());
-
-  std::cout << Colors::BOLD << Colors::RED
-            << "\n-------------------------------COMPILED_OUTPUT---------------"
-               "-----------------------\n"
-            << Colors::RESET << std::endl;
-
-  saveIRAndCompile(cc.Module.get(), "output");
-  return 0;
-}
+// int main() {
+//   std::string src = R"(
+//   func main() -> U32 {
+//   	let a:U32[5] = [32412, 22, 3, 4, 5];
+// 	let b:*U32 = a;
+// 	return a[0]; 
+//   }
+//
+//   )";
+//
+//   std::vector<std::string> sourceLines;
+//   {
+//     std::istringstream ss(src);
+//     std::string line;
+//     while (std::getline(ss, line))
+//       sourceLines.push_back(line);
+//   }
+//
+//   Diagnostics diag(sourceLines);
+//
+//   // --- Lexical Analysis ---
+//   Lexer lexer(src);
+//   auto program = lexer.lexer();
+//
+//   std::cout << "Tokens:\n";
+//   int count = 0;
+//   for (const auto &stmt : program) {
+//     std::cout << tokenName(stmt.type) << ":'" << stmt.value << "'  ";
+//     count++;
+//     if (count % 5 == 0) // 5 tokens per line
+//       std::cout << "\n";
+//   }
+//   if (count % 5 != 0)
+//     std::cout << "\n"; // print final newline if needed
+//
+//   std::cout << Colors::BOLD << Colors::RED
+//             << "\n-------------------------------PARSED-AST--------------------"
+//                "------------------\n"
+//             << Colors::RESET << std::endl;
+//
+//   // --- Parsing ---
+//   Parser parser(program, "MYMODULE", diag);
+//   auto astNodes = parser.Parse();
+//
+//   // std::cout << "AST Nodes:\n";
+//   // for (auto &v : astNodes) {
+//   //   std::cout << v->repr() << std::endl;
+//   // }
+//
+//   auto &cc = parser.getCodegenContext();
+//   for (auto &v : astNodes) {
+//     try {
+//       v->codegen(cc);
+//     } catch (const std::exception &e) {
+//       std::cerr << "Codegen error: " << e.what() << std::endl;
+//     }
+//   }
+//
+//   std::cout << Colors::BOLD << Colors::RED
+//             << "\n-------------------------------LLVM_IR-----------------------"
+//                "---------------\n"
+//             << Colors::RESET << std::endl;
+//   printIRWithLineNumbers(cc.Module.get());
+//
+//   std::cout << Colors::BOLD << Colors::RED
+//             << "\n-------------------------------COMPILED_OUTPUT---------------"
+//                "-----------------------\n"
+//             << Colors::RESET << std::endl;
+//
+//   saveIRAndCompile(cc.Module.get(), "output");
+//   return 0;
+// }

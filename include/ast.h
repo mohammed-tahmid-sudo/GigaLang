@@ -209,14 +209,6 @@ struct ArrayAccessNode : ast {
   CodegenResults codegen(CodegenContext &cc) override;
 };
 
-struct SizeOfNode : ast {
-  std::unique_ptr<ast> val;
-
-  SizeOfNode(std::unique_ptr<ast> valval) : val(std::move(valval)) {}
-
-  CodegenResults codegen(CodegenContext &cc) override;
-};
-
 struct SyscallNode : ast {
   int name;
   std::vector<std::unique_ptr<ast>> args;
